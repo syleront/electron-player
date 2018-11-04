@@ -1,0 +1,33 @@
+<div class="map-vertical-form">
+  <div id="auth_forms">
+    <div>
+      <input placeholder="Логин" id="login" type="text" class="map-login-form">
+    </div>
+    <div>
+      <input placeholder="Пароль" id="password" type="password" class="map-login-form">
+    </div>
+  </div>
+
+  <!-- if 2fa is activated index.js unhide this -->
+  <div id="auth_check_form" style="display: none;">
+    <input id="auth_code" type="text" class="validate">
+  </div>
+
+  <div class="map-vertical-button">
+    <button id="login_btn" class="map-scale-transition map-login-button" type="submit" name="action">Войти</button>
+  </div>
+
+  <div id="preloader" class="map-vertical-button" style="display: none;">
+    <img class="map-login-preloader" src="res/html/img/bars.svg" />
+  </div>
+
+  <div class="map-link-div" id="login_with_site">
+    <a class="map-link-a" href="https://m.vk.com">Войти через сайт</a>
+  </div>
+
+  <div class="map-link-div" id="send_sms" style="display: none;">
+    <a class="map-link-a">Отправить SMS с кодом</a>
+    <div class="map-sended-text" id="text_sms_sended"></div>
+  </div>
+
+</div>
