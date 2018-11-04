@@ -3,7 +3,10 @@
 const vk = require("./res/js/tools/vk_site_api.js"),
   fs = require("fs"),
   path = require("path"),
-  user_settings = tryRequire("./data/settings.json");
+  user_settings = tryRequire("./data/settings.json"),
+  EventEmitter = require('events');
+
+  let emitter = new EventEmitter();
 
 /* window.onerror = function (msg, url, num) {
   alert("Error: " + msg + "\nWhere: " + url + "\nLine: " + num);
