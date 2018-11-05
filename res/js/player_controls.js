@@ -42,23 +42,38 @@ var ex = function (VK, Settings) {
             this.data.currentTracklist = this.data.currentTracklist.concat(r);
             resolve(this.data.currentTracklist);
           });
+        } else if (playlistName == "searchPlaylist") {
+          var query = this.data.currentSearchQuery;
+          VK.audioUtils.search({
+            q: query,
+            offset: this.data.currentTracklist.length
+          }).then((r) => {
+            this.data.currentTracklist = r;
+            resolve(this.data.currentTracklist);
+          });
         } else {
           reject(false);
         }
       });
     },
+    getVisibleContainer: function () {
+      return Array.from(document.getElementsByClassName("map-container")).filter((e) => e.style.display !== "none")[0];
+    },
     getTabAudioNodesById: function (id) {
       return document.getElementById(id).getElementsByClassName("map-audio-element");
     },
     getCurrentTabAudioNodes: function () {
-      return document.getElementById(this.data.currentTab).getElementsByClassName("map-audio-element");
+      return this.getVisibleContainer().getElementsByClassName("map-audio-element");
     },
     getCurrentTabAudioNode: function (id) {
-      return Array.from(this.getCurrentTabAudioNodes()).filter((e) => e.attachment_id == id)[0];
+      return Array.from(this.getCurrentTabAudioNodes()).filter((e) => e.trackInfo.attachment_id == id)[0];
+    },
+    getListFromAudioNodes: function (list) {
+      return Array.from(list).map((e) => e.trackInfo);
     },
     getCurrentTabTracklist: function () {
       var n = this.data.currentTabPlaylistName;
-      return this.data[n] || [];
+      return this.data[n] || this.getListFromAudioNodes(this.getCurrentTabAudioNodes());
     },
     setCurrentTabTracklist: function () {
       this.data.currentTracklist = this.getCurrentTabTracklist();
@@ -75,7 +90,7 @@ var ex = function (VK, Settings) {
       return this.getTrackIndex(this.data.currentTrackId);
     },
     getTrackNodesById: function (id) {
-      return Array.from(document.getElementsByClassName("map-audio-element")).filter((e) => e.attachment_id == id);
+      return Array.from(document.getElementsByClassName("map-audio-element")).filter((e) => e.trackInfo.attachment_id == id);
     },
     setTrackNodesStatus: function (id, play) {
       this.getTrackNodesById(id).forEach((e) => {
@@ -138,7 +153,7 @@ var ex = function (VK, Settings) {
       } else if (!this.data.currentTrackId) {
         var list = this.getCurrentTabTracklist();
         if (!list) return;
-        var newId = list[0].attachment_id;
+        var newId = list[0].trackInfo.attachment_id;
         this.setTrack(newId);
         playerEmitter.emit("play", newId);
       } else if (Audio.paused) {
@@ -207,16 +222,8 @@ var ex = function (VK, Settings) {
                   playlist_id: e.id || e.playlist_id
                 }).then((r) => {
                   loadElement("html_plains/back_button.html").then((btn) => {
-                    var oldPlaylist;
-                    if (this.data.currentTabPlaylistName == "searchPlaylist") {
-                      if (this.data.searchPlaylist) oldPlaylist = this.data.searchPlaylist;
-                      this.data.searchPlaylist = r;
-                    } else {
-                      this.data.playlistsPlaylist = r;
-                    }
                     btn.addEventListener("click", () => {
                       $(container).animateCss('fadeOut', () => {
-                        this.data.searchPlaylist = oldPlaylist;
                         container.close();
                         $(node).animateCss('fadeIn veryfaster');
                       });
@@ -278,7 +285,10 @@ var ex = function (VK, Settings) {
 
   Player.buttons.search_box.addEventListener("keyup", (evt) => {
     if (evt.keyCode == 13) {
-      if (Player.data.searchPlaylist) Player.buttons.tabs.sub.search.innerHTML = "";
+      if (Player.data.searchProcessing) return;
+      if (Player.data.search) Player.buttons.tabs.sub.search.innerHTML = "";
+      Player.data.search = true;
+      Player.data.searchProcessing = true;
       Player.buttons.tabs.search_audio_list.click();
       var query = Player.buttons.search_box.value;
       Player.data.currentSearchQuery = query;
@@ -322,8 +332,9 @@ var ex = function (VK, Settings) {
             el.childNodes[1].innerHTML = "Все аудиозаписи";
             el.childNodes[3].remove();
             Player.buttons.tabs.sub.search.appendChild(el);
-            Player.data.searchPlaylist = list;
-            Player.renderAudioList(list, Player.buttons.tabs.sub.search);
+            Player.renderAudioList(list, Player.buttons.tabs.sub.search, 0, 50, () => {
+              Player.data.searchProcessing = false;
+            });
           });
         });
       });
@@ -423,6 +434,11 @@ var ex = function (VK, Settings) {
       }, step);
       setTimeout(() => {
         clearInterval(i);
+        if (!up && Audio.volume !== 0) {
+          Audio.volume = 0;
+        } else if (up && Audio.volume !== vol) {
+          Audio.volume = vol;
+        }
         resolve(true);
       }, time + 5);
     });
@@ -446,27 +462,22 @@ var ex = function (VK, Settings) {
 
   function createAudioElement(track, audioNode, isAdded) {
     var node = audioNode.cloneNode(true);
-    node.attachment_id = track.attachment_id;
-    node.url = track.url;
-    node.hashes = track.hashes;
-    node.hashes_string = track.hashes_string;
-    node.duration = track.duration;
-    node.track_title = track.artist + " - " + track.title;
-    node.childNodes[7].innerHTML = secondsToString(node.duration);
+    track.track_title = track.artist + " - " + track.title;
+    node.trackInfo = track;
+    node.childNodes[7].innerHTML = secondsToString(node.trackInfo.duration);
     if (Player.isTrackInMainPlaylist(track.attachment_id) || isAdded) node.childNodes[5].innerHTML = "clear";
     node.childNodes[5].addEventListener("click", addTrackHandler);
-    node.childNodes[3].childNodes[1].innerHTML = node.track_title;
+    node.childNodes[3].childNodes[1].innerHTML = node.trackInfo.track_title;
     node.addEventListener("click", (evt) => {
       if (window.getSelection().isCollapsed && !evt.toElement.classList.contains("add-btn")) {
         Player.playPause(track.attachment_id);
       }
     });
-    if (node.attachment_id == Player.data.currentTrackId && !Audio.paused) node.childNodes[1].innerHTML = "pause_circle_filled";
+    if (node.trackInfo.attachment_id == Player.data.currentTrackId && !Audio.paused) node.childNodes[1].innerHTML = "pause_circle_filled";
     return node;
   }
 
   function changeInputColor(node) {
-    //console.log($(node).attr('max'))
     var bodyStyles = window.getComputedStyle(document.body);
     var fromColor = bodyStyles.getPropertyValue('--slider-line-after-color');
     var toColor = bodyStyles.getPropertyValue('--slider-line-before-color');
@@ -480,15 +491,7 @@ var ex = function (VK, Settings) {
 
   function addTrackHandler(evt) {
     var node = evt.target.parentNode;
-    var track = {
-      id: node.attachment_id.split("_")[1],
-      owner_id: node.attachment_id.split("_")[0],
-      url: node.url,
-      duration: node.duration,
-      hashes: node.hashes,
-      hashes_string: node.hashes_string,
-      attachment_id: node.attachment_id
-    };
+    var track = node.trackInfo;
     if (Player.isTrackInMainPlaylist(track.attachment_id) || node.added) { // if track in main playlist or track node has been added from other tab
       if (node.inMaintracklist) {
         track = node.added;

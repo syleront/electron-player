@@ -25,6 +25,7 @@ emitter.on("auth", (VK, settings) => {
     var div = createContainerDiv(forTab + "__" + playlist);
     e.container_id = div.id;
     main_container.appendChild(div);
+    //Player.buttons.tabs.sub[div.id] = div;
 
     if (e.getAttribute("alias")) {
       Player.buttons.tabs.sub[e.getAttribute("alias")] = div;
@@ -75,24 +76,14 @@ emitter.on("auth", (VK, settings) => {
             $(tabNode).animateCss('fadeIn veryfaster');
             tabNode.loaded = true;
           });
+        } else {
+          $(tabNode).animateCss('fadeIn veryfaster');
         }
       } else {
         $(tabNode).animateCss('fadeIn veryfaster');
       }
     });
   });
-
-  /* search_box_container.style.display = "none";
-  search_box_container.onscroll = onScrollHandler;
-  Player.buttons.tabs.search = search_box_container; */
-
-  /* VK.audioUtils.searchSection({
-    q: "horus"
-  }).then((r) => {
-    VK.audioUtils.loadPlaylistsBlock({
-      block_id: r.albumsBlockId
-    }).then(console.log);
-  }); */
 
   VK.audioUtils.getFullPlaylist().then((r) => {
     Player.data.mainPlaylist = r;
@@ -110,14 +101,6 @@ emitter.on("auth", (VK, settings) => {
       });
     });
   });
-
-  /* setTimeout(() => {
-    showTempContainer((document.getElementById(Player.data.currentSubtabId)), (el) => {
-      setTimeout(() => {
-        el.close();
-      }, 2000);
-    });
-  }, 2000); */
 
   function showTempContainer(nodeToHide, nodeToAppend, _cb) {
     nodeToHide.style.display = "none";
@@ -151,15 +134,20 @@ emitter.on("auth", (VK, settings) => {
               Player.renderAudioList(list, el);
             }
           });
+       } else if (playlistName == "searchPlaylist") {
+         var query = Player.data.currentSearchQuery;
+         VK.audioUtils.search({
+           q: query
+         }).then((r) => {
+           Player.renderAudioList(r, el, length, length + 50);
+         });
        } else {
          if (length >= Player.data.mainPlaylist.length) {
            Player.data.scrollStop = false;
          } else {
            Player.renderAudioList(Player.data[playlistName], el, length, length + 50);
          }
-       }/*  else {
-          Player.data.scrollStop = false;
-        } */
+       }
       } else if (el.scrollTop < 400 && Player.data.currentTab !== "playlists_audio_list") {
         Array.from(el.getElementsByClassName("map-audio-element")).slice(100).forEach((e) => {
           e.remove();
