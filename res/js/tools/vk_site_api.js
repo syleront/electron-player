@@ -150,6 +150,53 @@ var VK = {
           });
       });
     },
+    searchSection: function (obj) {
+      return new Promise((resolve, reject) => {
+        needle.post("https://vk.com/al_audio.php", {
+          act: "section",
+          al: 1,
+          is_layer: 0,
+          owner_id: VK.user_id,
+          q: obj.q,
+          offset: obj.offset || 0,
+          section: "search",
+        }, {
+            multipart: true,
+            cookies: VK.cookies
+          }, (e, r, b) => {
+            if (e) throw e;
+            var links = b.replace(/\n/g, "").match(/<a(.+?)<h2>Альбомы<\/h2>/g)[0].match(/<a(.+?)<\/a>/g);
+            var blockId = links[links.length - 1].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));;
+            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            b.albumsBlockId = blockId[0];
+            resolve(b);
+          });
+      });
+    },
+    loadPlaylistsBlock: function (obj) {
+      return new Promise((resolve, reject) => {
+        needle.post("https://vk.com/al_audio.php", {
+          act: "load_playlists_block",
+          al: 1,
+          block_id: obj.block_id
+        }, {
+            multipart: true,
+            cookies: VK.cookies
+          }, (e, r, b) => {
+            if (e) throw e;
+            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            b.items = Object.entries(b.items).map((e) => {
+              e[1].playlist_id = e[0];
+              return e[1];
+            });
+            b.items.forEach((e, i) => {
+              var p = e.photo.angles[0].z;
+              e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
+            });
+            resolve(b);
+          });
+      });
+    },
     getPlaylist: function (obj, dontTransformList) {
       return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
@@ -200,7 +247,7 @@ var VK = {
           al: 1,
           is_layer: 0,
           section: "playlists",
-          owner_id: obj.owner_id || VK.user_id,
+          owner_id: obj.owner_id || VK.user_id
         }, {
             multipart: true,
             cookies: VK.cookies
@@ -238,7 +285,6 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            console.log(b)
             b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
             resolve(audioListToObj(b));
           });

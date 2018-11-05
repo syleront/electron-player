@@ -137,7 +137,7 @@ function renderLogin() {
         });
       }
     });
-    document.addEventListener("keydown", (evt) => {
+    auth_forms.addEventListener("keydown", (evt) => {
       if (evt.keyCode == 13) {
         btn.click();
       }

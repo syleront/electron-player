@@ -330,6 +330,24 @@ a {
   display: none;
 }
 
+.map-container-parent .header .search-box {
+  position: absolute;
+  margin-top: 10px;
+  margin-right: 10px;
+  right: 0;
+  outline: none;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 5px;
+  padding-left: 10px;
+  font-size: 12px;
+  background-color: rgba(0, 0, 0, 0.1);
+  transition: var(--long-transition);
+}
+
+.map-container-parent .header .search-box:focus {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
 .map-container {
   height: 100%;
   overflow-y: auto;
@@ -655,7 +673,4 @@ input[type=range]::-webkit-slider-thumb {
   cursor: pointer;
   -webkit-appearance: none;
   margin-top: -6px;
-}
-input[type=range]:focus::-webkit-slider-runnable-track {
-  /* background: var(--slider-line-after-color); */
 }

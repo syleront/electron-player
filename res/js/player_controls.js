@@ -9,6 +9,7 @@ var ex = function (VK, Settings) {
     data: {
       currentTab: "main_audio_list",
       currentTabPlaylistName: "mainPlaylist",
+      currentSubtabId: "main_audio_list__mainPlaylist",
       currentTracklist: [],
       currentTracklistInfo: {
         fromTab: "main_audio_list"
@@ -25,11 +26,12 @@ var ex = function (VK, Settings) {
       time: document.getElementById("player_time"),
       full_time: document.getElementById("player_full_time"),
       cover: document.getElementById("track_cover"),
+      search_box: document.getElementById("search_box"),
       tabs: {}
     },
     loadAdditionalTracksToCurrentTracklist: function () {
       return new Promise((resolve, reject) => {
-        var playlistName = this.getcurrentTabPlaylistName();
+        var playlistName = this.data.currentTabPlaylistName;
         if (playlistName == "recomsPlaylist") {
           VK.audioUtils.getRecomendations({
             offset: this.data.currentTracklist.length
@@ -38,7 +40,16 @@ var ex = function (VK, Settings) {
             this.data.currentTracklist = this.data.currentTracklist.concat(r);
             resolve(this.data.currentTracklist);
           });
-        } else {
+        } /* else if (playlistName == "searchPlaylist") {
+          var query = this.data.currentSearchQuery;
+          VK.audioUtils.search({
+            q: query,
+            offset: this.data.currentTracklist.length
+          }).then((r) => {
+            this.data.currentTracklist = this.data.currentTracklist.concat(r);
+            resolve(this.data.currentTracklist);
+          });
+        } */ else {
           reject(false);
         }
       });
@@ -79,8 +90,12 @@ var ex = function (VK, Settings) {
       });
     },
     isTrackInMainPlaylist: function (id, needIndex) {
-      var i = this.data.mainPlaylist.findIndex((e) => e.attachment_id == id);
-      return needIndex ? i : (i > -1 ? true : false);
+      if (this.data.mainPlaylist) {
+        var i = this.data.mainPlaylist.findIndex((e) => e.attachment_id == id);
+        return needIndex ? i : (i > -1 ? true : false);
+      } else {
+        return false;
+      }
     },
     setTrack: function (id) {
       var trackInfo = this.getTrackinfoFromTracklist(id);
@@ -266,6 +281,23 @@ var ex = function (VK, Settings) {
     changeInputColor(Player.buttons.range);
   });
 
+  Player.buttons.search_box.addEventListener("keyup", (evt) => {
+    if (evt.keyCode == 13) {
+      var query = Player.buttons.search_box.value;
+      Player.data.currentSearchQuery = query;
+      VK.audioUtils.search({
+        q: query
+      }).then((r) => {
+        Player.data.searchPlaylist = r;
+        document.getElementById(Player.data.currentSubtabId).style.display = "none";
+        Player.data.currentTabPlaylistName = "searchPlaylist";
+        Player.buttons.tabs.search.innerHTML = "";
+        Player.buttons.tabs.search.style.display = "";
+        Player.renderAudioList(r, Player.buttons.tabs.search, 0, 50);
+      });
+    }
+  });
+
   Audio.addEventListener("timeupdate", () => {
     if (Player.data.rangeInputBreak) return;
     var value = Math.ceil(Audio.currentTime);
@@ -408,10 +440,10 @@ var ex = function (VK, Settings) {
     var toColor = bodyStyles.getPropertyValue('--slider-line-before-color');
     var val = ($(node).val() - $(node).attr('min')) / ($(node).attr('max') - $(node).attr('min'));
 
-    node.setAttribute("style", 'background-image: -webkit-gradient(linear, left top, right top, '
-      + 'color-stop(' + val + ', ' + fromColor + '), '
-      + 'color-stop(' + val + ', ' + toColor + ')'
-      + ')');
+    node.setAttribute("style", "background-image: -webkit-gradient(linear, left top, right top, " +
+      "color-stop(" + val + ", " + fromColor + ")," +
+      "color-stop(" + val + ", " + toColor + ")" +
+      ")");
   }
 
   function addTrackHandler(evt) {
