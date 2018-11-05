@@ -26,6 +26,9 @@ emitter.on("auth", (VK, settings) => {
     e.container_id = div.id;
     main_container.appendChild(div);
 
+    if (e.getAttribute("alias")) {
+      Player.buttons.tabs.sub[e.getAttribute("alias")] = div;
+    }
     if (Player.data.currentTab !== forTab) {
       e.style.display = "none";
       div.style.display = "none";
@@ -48,10 +51,14 @@ emitter.on("auth", (VK, settings) => {
       Player.data.currentSubtabId = forTab + "__" + playlist;
       Player.data.currentTabPlaylistName = playlist;
       Array.from(document.getElementsByClassName("map-container")).forEach((e) => {
-        if (e.id !== tabNode.id) {
-          e.style.display = "none";
-        } else if (e.style.display == "none") {
-          e.style.display = "";
+        if (e.temp) {
+          e.remove();
+        } else {
+          if (e.id !== tabNode.id) {
+            e.style.display = "none";
+          } else if (e.style.display == "none") {
+            e.style.display = "";
+          }
         }
       });
 
@@ -59,18 +66,18 @@ emitter.on("auth", (VK, settings) => {
         if (playlist == "playlistsPlaylist") {
           VK.audioUtils.getUserPlaylists().then((r) => {
             Player.renderPlaylists(r, tabNode, () => {
-              $('#' + tabNode.id).animateCss('fadeIn veryfaster');
+              $(tabNode).animateCss('fadeIn veryfaster');
               tabNode.loaded = true;
             });
           });
-        } else {
+        } else if (playlist !== "searchPlaylist") {
           Player.renderAudioList(Player.data[playlist], tabNode, 0, 50, () => {
-            $('#' + tabNode.id).animateCss('fadeIn veryfaster');
+            $(tabNode).animateCss('fadeIn veryfaster');
             tabNode.loaded = true;
           });
         }
       } else {
-        $('#' + tabNode.id).animateCss('fadeIn veryfaster');
+        $(tabNode).animateCss('fadeIn veryfaster');
       }
     });
   });
@@ -112,14 +119,16 @@ emitter.on("auth", (VK, settings) => {
     });
   }, 2000); */
 
-  function showTempContainer(nodeToHide, _cb) {
+  function showTempContainer(nodeToHide, nodeToAppend, _cb) {
     nodeToHide.style.display = "none";
     var div = createContainerDiv();
+    div.temp = true;
     div.close = function () {
       div.remove();
       nodeToHide.style.display = "";
     };
-    main_container.appendChild(div);
+    if (!nodeToAppend) nodeToAppend = main_container;
+    nodeToAppend.appendChild(div);
     if (_cb) _cb(div);
   }
 

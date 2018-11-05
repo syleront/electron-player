@@ -58,6 +58,9 @@
       <div class="tab-element map-scale-transition" tab="recommendations_audio_list">
         Рекомендации
       </div>
+      <div class="tab-element map-scale-transition" tab="search_audio_list">
+        Поиск
+      </div>
     </div>
   </div>
 
@@ -66,7 +69,10 @@
       <input placeholder="Поиск" type="text" id="search_box" class="search-box">
       <button class="subtab-element selected map-background-transition" for_tab="main_audio_list" playlist="mainPlaylist">Мои треки</button>
       <button class="subtab-element map-background-transition" for_tab="main_audio_list" playlist="playlistsPlaylist">Плейлисты</button>
+
       <button class="subtab-element selected hidden map-background-transition" for_tab="recommendations_audio_list" playlist="recomsPlaylist">Рекомендации</button>
+
+      <button alias="search" class="subtab-element selected map-background-transition" for_tab="search_audio_list" playlist="searchPlaylist">Результаты</button>
     </div>
     <!-- <div id="search_box_container" class="map-container"></div> -->
     <!-- <div id="main_audio_list" playlist="mainPlaylist" class="map-container"></div>

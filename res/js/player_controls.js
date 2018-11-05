@@ -27,7 +27,9 @@ var ex = function (VK, Settings) {
       full_time: document.getElementById("player_full_time"),
       cover: document.getElementById("track_cover"),
       search_box: document.getElementById("search_box"),
-      tabs: {}
+      tabs: {
+        sub: {}
+      }
     },
     loadAdditionalTracksToCurrentTracklist: function () {
       return new Promise((resolve, reject) => {
@@ -40,16 +42,7 @@ var ex = function (VK, Settings) {
             this.data.currentTracklist = this.data.currentTracklist.concat(r);
             resolve(this.data.currentTracklist);
           });
-        } /* else if (playlistName == "searchPlaylist") {
-          var query = this.data.currentSearchQuery;
-          VK.audioUtils.search({
-            q: query,
-            offset: this.data.currentTracklist.length
-          }).then((r) => {
-            this.data.currentTracklist = this.data.currentTracklist.concat(r);
-            resolve(this.data.currentTracklist);
-          });
-        } */ else {
+        } else {
           reject(false);
         }
       });
@@ -207,24 +200,27 @@ var ex = function (VK, Settings) {
             $(node).animateCss('fadeOut', () => {
               this.data.scrollStop = true;
               node.style.display = "none";
-              Player.showTempContainer(node, (container) => {
+              Player.showTempContainer(node, null, (container) => {
                 VK.audioUtils.getFullPlaylist({
                   access_hash: e.access_hash || "",
                   owner_id: e.owner_id,
                   playlist_id: e.id || e.playlist_id
                 }).then((r) => {
                   loadElement("html_plains/back_button.html").then((btn) => {
-                    btn.addEventListener("click", () => {
-                      $(container).animateCss('fadeOut', () => {
-                        container.close();
-                        $(node).animateCss('fadeIn veryfaster');
-                      });
-                    });
+                    var oldPlaylist;
                     if (this.data.currentTabPlaylistName == "searchPlaylist") {
+                      if (this.data.searchPlaylist) oldPlaylist = this.data.searchPlaylist;
                       this.data.searchPlaylist = r;
                     } else {
                       this.data.playlistsPlaylist = r;
                     }
+                    btn.addEventListener("click", () => {
+                      $(container).animateCss('fadeOut', () => {
+                        this.data.searchPlaylist = oldPlaylist;
+                        container.close();
+                        $(node).animateCss('fadeIn veryfaster');
+                      });
+                    });
                     this.renderAudioList(r, container, () => {
                       container.insertAdjacentElement("afterbegin", btn);
                       $(container).animateCss('fadeIn');
@@ -282,54 +278,52 @@ var ex = function (VK, Settings) {
 
   Player.buttons.search_box.addEventListener("keyup", (evt) => {
     if (evt.keyCode == 13) {
-      if (Player.tmpSearchContainer) Player.tmpSearchContainer.close();
+      if (Player.data.searchPlaylist) Player.buttons.tabs.sub.search.innerHTML = "";
+      Player.buttons.tabs.search_audio_list.click();
       var query = Player.buttons.search_box.value;
       Player.data.currentSearchQuery = query;
       Player.data.currentTabPlaylistName = "searchPlaylist";
-      Player.showTempContainer(document.getElementById(Player.data.currentSubtabId), (container) => {
-        Player.tmpSearchContainer = container;
-        VK.audioUtils.searchSection({
-          q: query
-        }).then((r) => {
-          return VK.audioUtils.loadPlaylistsBlock({
-            block_id: r.albumsBlockId
-          }).then((albums) => {
-            return loadElement("html_plains/search_box_albums_header.html").then((el) => {
-              el.childNodes[3].addEventListener("click", () => {
-                Player.data.scrollStop = true;
-                loadElement("html_plains/back_button.html").then((btn) => {
-                  $(container).animateCss('fadeOut', () => {
-                    Player.showTempContainer(container, (albumsContainer) => {
-                      Player.data.scrollStop = true;
-                      btn.addEventListener("click", () => {
-                        $(albumsContainer).animateCss('fadeOut', () => {
-                          Player.data.scrollStop = false;
-                          albumsContainer.close();
-                        });
+      VK.audioUtils.searchSection({
+        q: query
+      }).then((r) => {
+        return VK.audioUtils.loadPlaylistsBlock({
+          block_id: r.albumsBlockId
+        }).then((albums) => {
+          return loadElement("html_plains/search_box_albums_header.html").then((el) => {
+            el.childNodes[3].addEventListener("click", () => {
+              Player.data.scrollStop = true;
+              loadElement("html_plains/back_button.html").then((btn) => {
+                $(Player.buttons.tabs.sub.search).animateCss('fadeOut', () => {
+                  Player.showTempContainer(Player.buttons.tabs.sub.search, null, (albumsContainer) => {
+                    Player.data.scrollStop = true;
+                    btn.addEventListener("click", () => {
+                      $(albumsContainer).animateCss('fadeOut', () => {
+                        Player.data.scrollStop = false;
+                        albumsContainer.close();
                       });
-                      albumsContainer.appendChild(btn);
-                      Player.renderPlaylists(albums.items, albumsContainer);
-                      $(albumsContainer).animateCss('fadeIn');
                     });
+                    albumsContainer.appendChild(btn);
+                    Player.renderPlaylists(albums.items, albumsContainer);
+                    $(albumsContainer).animateCss('fadeIn');
                   });
                 });
               });
-              container.appendChild(el);
-              $(container).animateCss('fadeIn');
-              Player.renderPlaylists(albums.items.slice(0, 5), container);
             });
+            Player.buttons.tabs.sub.search.appendChild(el);
+            $(Player.buttons.tabs.sub.search).animateCss('fadeIn');
+            Player.renderPlaylists(albums.items.slice(0, 5), Player.buttons.tabs.sub.search);
           });
-        }).catch(() => { }).then(() => {
-          VK.audioUtils.search({
-            q: query
-          }).then((list) => {
-            loadElement("html_plains/search_box_albums_header.html").then((el) => {
-              el.childNodes[1].innerHTML = "Все аудиозаписи";
-              el.childNodes[3].remove();
-              container.appendChild(el);
-              Player.data.searchPlaylist = list;
-              Player.renderAudioList(list, container);
-            });
+        });
+      }).catch(() => { }).then(() => {
+        VK.audioUtils.search({
+          q: query
+        }).then((list) => {
+          loadElement("html_plains/search_box_albums_header.html").then((el) => {
+            el.childNodes[1].innerHTML = "Все аудиозаписи";
+            el.childNodes[3].remove();
+            Player.buttons.tabs.sub.search.appendChild(el);
+            Player.data.searchPlaylist = list;
+            Player.renderAudioList(list, Player.buttons.tabs.sub.search);
           });
         });
       });
@@ -383,7 +377,7 @@ var ex = function (VK, Settings) {
         if (Player.buttons.cover.classList.contains("animation-spin")) {
           Player.buttons.cover.classList.remove("animation-spin");
         }
-        $('#' + Player.buttons.cover.id).animateCss("fadeOut superfaster", () => {
+        $(Player.buttons.cover).animateCss("fadeOut superfaster", () => {
           Player.buttons.cover.style.opacity = "0";
           Player.buttons.cover.src = url;
           Player.buttons.cover.src_orig = url;
@@ -396,7 +390,7 @@ var ex = function (VK, Settings) {
           }
           Player.buttons.cover.onload = function () {
             Player.buttons.cover.style.opacity = "1";
-            $('#' + Player.buttons.cover.id).animateCss("fadeIn superfaster", () => {
+            $(Player.buttons.cover).animateCss("fadeIn superfaster", () => {
               Player.buttons.cover.classList.remove("animated");
               Player.buttons.cover.classList.remove("fadeOut");
               Player.buttons.cover.classList.remove("superfaster");
