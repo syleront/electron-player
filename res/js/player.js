@@ -2,18 +2,19 @@
 // тут страшно :\
 
 emitter.on("auth", (VK, settings) => {
-  var player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, settings);
+  const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, settings);
+  Player.showTempContainer = showTempContainer;
 
   if (settings.cover_spin) {
-    player.buttons.cover.classList.add("disk");
-    player.buttons.cover.classList.add("animation-spin");
+    Player.buttons.cover.classList.add("disk");
+    Player.buttons.cover.classList.add("animation-spin");
     cover_disk_center.classList.add("disk-center");
   }
 
   var sidebar_links = Array.from(document.getElementsByClassName("tab-element"));
   sidebar_links.filter((e) => e.getAttribute("tab")).forEach((e) => {
     var id = e.getAttribute("tab");
-    player.buttons.tabs[id] = e;
+    Player.buttons.tabs[id] = e;
     e.addEventListener("click", changeTab);
   });
 
@@ -25,11 +26,11 @@ emitter.on("auth", (VK, settings) => {
     e.container_id = div.id;
     main_container.appendChild(div);
 
-    if (player.data.currentTab !== forTab) {
+    if (Player.data.currentTab !== forTab) {
       e.style.display = "none";
       div.style.display = "none";
     }
-    if (playlist !== player.data.currentTabPlaylistName) {
+    if (playlist !== Player.data.currentTabPlaylistName) {
       div.style.display = "none";
     }
     if (!e.classList.contains("selected")) {
@@ -37,15 +38,15 @@ emitter.on("auth", (VK, settings) => {
     }
 
     e.addEventListener("click", (evt) => {
-      //if (player.data.rendering) return; //evt.target.classList.contains("selected")
-      subtabs.filter((e) => e.classList.contains("selected") && e.getAttribute("for_tab") == player.data.currentTab)[0].classList.remove("selected");
+      //if (Player.data.rendering) return; //evt.target.classList.contains("selected")
+      subtabs.filter((e) => e.classList.contains("selected") && e.getAttribute("for_tab") == Player.data.currentTab)[0].classList.remove("selected");
       evt.target.classList.add("selected");
 
       var forTab = evt.target.getAttribute("for_tab");
       var playlist = evt.target.getAttribute("playlist");
       var tabNode = document.getElementById(forTab + "__" + playlist);
-      player.data.currentSubtabId = forTab + "__" + playlist;
-      player.data.currentTabPlaylistName = playlist;
+      Player.data.currentSubtabId = forTab + "__" + playlist;
+      Player.data.currentTabPlaylistName = playlist;
       Array.from(document.getElementsByClassName("map-container")).forEach((e) => {
         if (e.id !== tabNode.id) {
           e.style.display = "none";
@@ -57,13 +58,13 @@ emitter.on("auth", (VK, settings) => {
       if (!tabNode.loaded) {
         if (playlist == "playlistsPlaylist") {
           VK.audioUtils.getUserPlaylists().then((r) => {
-            player.renderPlaylists(r, tabNode, () => {
+            Player.renderPlaylists(r, tabNode, () => {
               $('#' + tabNode.id).animateCss('fadeIn veryfaster');
               tabNode.loaded = true;
             });
           });
         } else {
-          player.renderAudioList(player.data[playlist], tabNode, 0, 50, () => {
+          Player.renderAudioList(Player.data[playlist], tabNode, 0, 50, () => {
             $('#' + tabNode.id).animateCss('fadeIn veryfaster');
             tabNode.loaded = true;
           });
@@ -74,9 +75,9 @@ emitter.on("auth", (VK, settings) => {
     });
   });
 
-  search_box_container.style.display = "none";
+  /* search_box_container.style.display = "none";
   search_box_container.onscroll = onScrollHandler;
-  player.buttons.tabs.search = search_box_container;
+  Player.buttons.tabs.search = search_box_container; */
 
   /* VK.audioUtils.searchSection({
     q: "horus"
@@ -87,51 +88,70 @@ emitter.on("auth", (VK, settings) => {
   }); */
 
   VK.audioUtils.getFullPlaylist().then((r) => {
-    player.data.mainPlaylist = r;
+    Player.data.mainPlaylist = r;
     var node = document.getElementById("main_audio_list__mainPlaylist");
-    player.data.currentAudioListNode = node;
-    player.renderAudioList(r, node, 0, 50, () => {
+    Player.data.currentAudioListNode = node;
+    Player.renderAudioList(r, node, 0, 50, () => {
       node.loaded = true;
     });
   }).then(() => {
     VK.audioUtils.getRecomendations().then((r) => {
-      player.data.recomsPlaylist = r;
+      Player.data.recomsPlaylist = r;
       var node = document.getElementById("recommendations_audio_list__recomsPlaylist");
-      player.renderAudioList(r, node, 0, 50, () => {
+      Player.renderAudioList(r, node, 0, 50, () => {
         node.loaded = true;
       });
     });
   });
 
+  /* setTimeout(() => {
+    showTempContainer((document.getElementById(Player.data.currentSubtabId)), (el) => {
+      setTimeout(() => {
+        el.close();
+      }, 2000);
+    });
+  }, 2000); */
+
+  function showTempContainer(nodeToHide, _cb) {
+    nodeToHide.style.display = "none";
+    var div = createContainerDiv();
+    div.close = function () {
+      div.remove();
+      nodeToHide.style.display = "";
+    };
+    main_container.appendChild(div);
+    if (_cb) _cb(div);
+  }
+
   function onScrollHandler(evt) {
     var el = evt.target;
-    //console.log(el.scrollTop, el.scrollHeight, el.offsetHeight, (el.scrollHeight - el.offsetHeight) - 50, player.data.scrollStop)
-    if (!player.data.scrollStop) {
+    //console.log(el.scrollTop, el.scrollHeight, el.offsetHeight, (el.scrollHeight - el.offsetHeight) - 50, Player.data.scrollStop)
+    if (!Player.data.scrollStop) {
       if (el.scrollTop >= (el.scrollHeight - el.offsetHeight) - 50) {
-        player.data.scrollStop = true;
+        Player.data.scrollStop = true;
         var length = el.getElementsByClassName("map-audio-element").length;
-        var playlistName = player.data.currentTabPlaylistName;
+        var playlistName = Player.data.currentTabPlaylistName;
        if (playlistName == "recomsPlaylist") {
           VK.audioUtils.getRecomendations({
             offset: length
           }).then((list) => {
             if (!list.length) {
-              player.data.scrollStop = false;
+              Player.data.scrollStop = false;
             } else {
-              player.data.recomsPlaylist = player.data.recomsPlaylist.concat(list);
-              player.renderAudioList(list, el);
+              Player.data.recomsPlaylist = Player.data.recomsPlaylist.concat(list);
+              Player.renderAudioList(list, el);
             }
           });
        } else {
-         if (length >= player.data.mainPlaylist.length) {
-           player.data.scrollStop = false;
+         if (length >= Player.data.mainPlaylist.length) {
+           Player.data.scrollStop = false;
          } else {
-           player.renderAudioList(player.data[playlistName], el, length, length + 50);
+           Player.renderAudioList(Player.data[playlistName], el, length, length + 50);
          }
        }/*  else {
-          player.data.scrollStop = false;
+          Player.data.scrollStop = false;
         } */
-      } else if (el.scrollTop < 400 && player.data.currentTab !== "playlists_audio_list") {
+      } else if (el.scrollTop < 400 && Player.data.currentTab !== "playlists_audio_list") {
         Array.from(el.getElementsByClassName("map-audio-element")).slice(100).forEach((e) => {
           e.remove();
         });
@@ -140,17 +160,17 @@ emitter.on("auth", (VK, settings) => {
   }
 
   function changeTab(evt) {
-    player.buttons.tabs[player.data.currentTab].classList.remove("tab-element-selected");
-    player.buttons.tabs[player.data.currentTab].classList.add("map-transition");
+    Player.buttons.tabs[Player.data.currentTab].classList.remove("tab-element-selected");
+    Player.buttons.tabs[Player.data.currentTab].classList.add("map-transition");
 
-    player.data.currentTab = evt.target.getAttribute("tab");
-    player.buttons.tabs[player.data.currentTab].classList.add("tab-element-selected");
-    player.buttons.tabs[player.data.currentTab].classList.remove("map-transition");
+    Player.data.currentTab = evt.target.getAttribute("tab");
+    Player.buttons.tabs[Player.data.currentTab].classList.add("tab-element-selected");
+    Player.buttons.tabs[Player.data.currentTab].classList.remove("map-transition");
 
     subtabs.forEach((e) => {
       var forTab = e.getAttribute("for_tab");
       var container = document.getElementById(e.container_id);
-      if (player.data.currentTab !== forTab) {
+      if (Player.data.currentTab !== forTab) {
         e.style.display = "none";
         container.style.display = "none";
       } else {
@@ -164,7 +184,7 @@ emitter.on("auth", (VK, settings) => {
       }
     });
 
-    if (subtabs.filter((e) => e.getAttribute("for_tab") == player.data.currentTab).every((e) => e.style.display == "none" || e.classList.contains("hidden"))) {
+    if (subtabs.filter((e) => e.getAttribute("for_tab") == Player.data.currentTab).every((e) => e.style.display == "none" || e.classList.contains("hidden"))) {
       container_header.style.display = "none";
     } else {
       container_header.style.display = "";
@@ -174,8 +194,8 @@ emitter.on("auth", (VK, settings) => {
   function createContainerDiv(id) {
     var div = document.createElement("div");
     div.classList.add("map-container");
-    div.id = id;
     div.onscroll = onScrollHandler;
+    if (id) div.id = id;
     return div;
   }
 

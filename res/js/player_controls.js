@@ -187,48 +187,48 @@ var ex = function (VK, Settings) {
       }
     },
     renderAudioList: function (list, node, from, to) {
-      this.data.rendering = true;
       loadElement("html_plains/audio_element.html").then((audioNode) => {
         (typeof from == "number" ? list.slice(from, to) : list).forEach((e, i) => {
           var el = createAudioElement(e, audioNode);
           node.appendChild(el);
         });
         this.data.scrollStop = false;
-        this.data.rendering = false;
         if (typeof arguments[arguments.length - 1] == "function") arguments[arguments.length - 1]();
       });
     },
     renderPlaylists: function (list, node) {
-      this.data.rendering = true;
       loadElement("html_plains/playlist_element.html").then((pl) => {
         list.forEach((e) => {
           var el = pl.cloneNode(true);
-          if (e.picture) el.childNodes[1].src = e.picture;
+          if (e.photo && e.photo.url) e.picture = e.photo.url;
+          el.childNodes[1].src = e.picture || el.childNodes[1].src;
           el.childNodes[3].innerHTML = e.title;
           el.addEventListener("click", () => {
-            this.data.rendering = true;
-            $('#' + node.id).animateCss('fadeOut', () => {
-              var scrollTop = node.scrollTop;
-              node.innerHTML = "";
-              VK.audioUtils.getFullPlaylist({
-                access_hash: e.access_hash,
-                owner_id: e.owner_id,
-                playlist_id: e.playlist_id
-              }).then((r) => {
-                loadElement("html_plains/back_button.html").then((btn) => {
-                  btn.addEventListener("click", () => {
-                    $('#' + node.id).animateCss('fadeOut', () => {
-                      node.innerHTML = "";
-                      this.renderPlaylists(list, node, () => {
-                        node.scrollTop = scrollTop;
-                        $('#' + node.id).animateCss('fadeIn veryfaster');
+            $(node).animateCss('fadeOut', () => {
+              this.data.scrollStop = true;
+              node.style.display = "none";
+              Player.showTempContainer(node, (container) => {
+                VK.audioUtils.getFullPlaylist({
+                  access_hash: e.access_hash || "",
+                  owner_id: e.owner_id,
+                  playlist_id: e.id || e.playlist_id
+                }).then((r) => {
+                  loadElement("html_plains/back_button.html").then((btn) => {
+                    btn.addEventListener("click", () => {
+                      $(container).animateCss('fadeOut', () => {
+                        container.close();
+                        $(node).animateCss('fadeIn veryfaster');
                       });
                     });
-                  });
-                  this.data.playlistsPlaylist = r;
-                  this.renderAudioList(r, node, () => {
-                    node.insertAdjacentElement("afterbegin", btn);
-                    $('#' + node.id).animateCss('fadeIn');
+                    if (this.data.currentTabPlaylistName == "searchPlaylist") {
+                      this.data.searchPlaylist = r;
+                    } else {
+                      this.data.playlistsPlaylist = r;
+                    }
+                    this.renderAudioList(r, container, () => {
+                      container.insertAdjacentElement("afterbegin", btn);
+                      $(container).animateCss('fadeIn');
+                    });
                   });
                 });
               });
@@ -236,7 +236,6 @@ var ex = function (VK, Settings) {
           });
           node.appendChild(el);
         });
-        this.data.rendering = false;
         if (typeof arguments[arguments.length - 1] == "function") arguments[arguments.length - 1]();
       });
     }
@@ -283,17 +282,56 @@ var ex = function (VK, Settings) {
 
   Player.buttons.search_box.addEventListener("keyup", (evt) => {
     if (evt.keyCode == 13) {
+      if (Player.tmpSearchContainer) Player.tmpSearchContainer.close();
       var query = Player.buttons.search_box.value;
       Player.data.currentSearchQuery = query;
-      VK.audioUtils.search({
-        q: query
-      }).then((r) => {
-        Player.data.searchPlaylist = r;
-        document.getElementById(Player.data.currentSubtabId).style.display = "none";
-        Player.data.currentTabPlaylistName = "searchPlaylist";
-        Player.buttons.tabs.search.innerHTML = "";
-        Player.buttons.tabs.search.style.display = "";
-        Player.renderAudioList(r, Player.buttons.tabs.search, 0, 50);
+      Player.data.currentTabPlaylistName = "searchPlaylist";
+      Player.showTempContainer(document.getElementById(Player.data.currentSubtabId), (container) => {
+        Player.tmpSearchContainer = container;
+        VK.audioUtils.searchSection({
+          q: query
+        }).then((r) => {
+          return VK.audioUtils.loadPlaylistsBlock({
+            block_id: r.albumsBlockId
+          }).then((albums) => {
+            return loadElement("html_plains/search_box_albums_header.html").then((el) => {
+              el.childNodes[3].addEventListener("click", () => {
+                Player.data.scrollStop = true;
+                loadElement("html_plains/back_button.html").then((btn) => {
+                  $(container).animateCss('fadeOut', () => {
+                    Player.showTempContainer(container, (albumsContainer) => {
+                      Player.data.scrollStop = true;
+                      btn.addEventListener("click", () => {
+                        $(albumsContainer).animateCss('fadeOut', () => {
+                          Player.data.scrollStop = false;
+                          albumsContainer.close();
+                        });
+                      });
+                      albumsContainer.appendChild(btn);
+                      Player.renderPlaylists(albums.items, albumsContainer);
+                      $(albumsContainer).animateCss('fadeIn');
+                    });
+                  });
+                });
+              });
+              container.appendChild(el);
+              $(container).animateCss('fadeIn');
+              Player.renderPlaylists(albums.items.slice(0, 5), container);
+            });
+          });
+        }).catch(() => { }).then(() => {
+          VK.audioUtils.search({
+            q: query
+          }).then((list) => {
+            loadElement("html_plains/search_box_albums_header.html").then((el) => {
+              el.childNodes[1].innerHTML = "Все аудиозаписи";
+              el.childNodes[3].remove();
+              container.appendChild(el);
+              Player.data.searchPlaylist = list;
+              Player.renderAudioList(list, container);
+            });
+          });
+        });
       });
     }
   });

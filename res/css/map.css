@@ -361,6 +361,35 @@ a {
   margin-left: 250px;
 }
 
+.map-searchbox-album-header {
+  position: relative;
+  height: 35px;
+  user-select: none;
+}
+
+.map-searchbox-album-header .title {
+  margin: auto;
+  font-size: 18px;
+  font-weight: 600;
+  position: absolute;
+  vertical-align: middle;
+  margin-left: 15px;
+  margin-top: 5px;
+}
+
+.map-searchbox-album-header .all-btn {
+  position: absolute;
+  right: 0;
+  margin-right: 20px;
+  margin-top: 5px;
+  cursor: pointer;
+  animation: var(--fast-transition);
+}
+
+.map-searchbox-album-header .all-btn:hover {
+  text-decoration: underline;
+}
+
 /* .map-header-button {
   padding-top: 2px;
   float: right;
@@ -503,7 +532,7 @@ input.map-login-form:focus {
 .map-playlist-element {
   user-select: none;
   height: 65px;
-  padding-left: 15px;
+  padding-left: 20px;
   display: flex;
   align-items: center;
   cursor: pointer;

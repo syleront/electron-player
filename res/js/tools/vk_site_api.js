@@ -165,11 +165,21 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var links = b.replace(/\n/g, "").match(/<a(.+?)<h2>Альбомы<\/h2>/g)[0].match(/<a(.+?)<\/a>/g);
-            var blockId = links[links.length - 1].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));;
-            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            b.albumsBlockId = blockId[0];
-            resolve(b);
+            var links = b.replace(/\n/g, "").match(/<a(.+?)<h2>Альбомы<\/h2>/g);
+            if (links) {
+              links = links[0].match(/<a(.+?)<\/a>/g);
+              var blockId = links[links.length - 1].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));;
+              b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+              b.playlists.forEach((e, i) => {
+                b.playlists[i].list = audioListToObj(e.list);
+              });
+              b.albumsBlockId = blockId[0];
+              resolve(b);
+            } else {
+              reject({
+                error: "search result is null"
+              });
+            }
           });
       });
     },
@@ -178,15 +188,18 @@ var VK = {
         needle.post("https://vk.com/al_audio.php", {
           act: "load_playlists_block",
           al: 1,
-          block_id: obj.block_id
+          block_id: obj.block_id,
+          render_html: 1
         }, {
             multipart: true,
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
+            var playlistIds = b.match(/audio\?z=audio_playlist(.+?)"/g).filter((e, i, array) => array.indexOf(e) === i).map((e) => e.match(/\/([A-z0-9]+)\\/)[1]);
             b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            b.items = Object.entries(b.items).map((e) => {
+            b.items = Object.entries(b.items).map((e, i) => {
               e[1].playlist_id = e[0];
+              e[1].access_hash = playlistIds[i];
               return e[1];
             });
             b.items.forEach((e, i) => {
