@@ -203,7 +203,7 @@ var VK = {
               return e[1];
             });
             b.items.forEach((e, i) => {
-              var p = e.photo.angles[0].z;
+              var p = e.photo.angles[0].m;
               e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
             });
             resolve(b);

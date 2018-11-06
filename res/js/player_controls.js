@@ -299,6 +299,7 @@ var ex = function (VK, Settings) {
         return VK.audioUtils.loadPlaylistsBlock({
           block_id: r.albumsBlockId
         }).then((albums) => {
+          console.log(albums)
           return loadElement("html_plains/search_box_albums_header.html").then((el) => {
             el.childNodes[3].addEventListener("click", () => {
               Player.data.scrollStop = true;

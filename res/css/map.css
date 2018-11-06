@@ -541,6 +541,9 @@ input.map-login-form:focus {
 .map-playlist-element .title {
   padding-left: 15px;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .map-playlist-element .photo {

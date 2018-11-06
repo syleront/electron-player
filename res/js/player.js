@@ -149,7 +149,7 @@ emitter.on("auth", (VK, settings) => {
          }
        }
       } else if (el.scrollTop < 400 && Player.data.currentTab !== "playlists_audio_list") {
-        Array.from(el.getElementsByClassName("map-audio-element")).slice(100).forEach((e) => {
+        Array.from(el.getElementsByClassName("map-audio-element")).slice(50).forEach((e) => {
           e.remove();
         });
       }
