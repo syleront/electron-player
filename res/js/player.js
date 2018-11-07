@@ -137,7 +137,9 @@ emitter.on("auth", (VK, settings) => {
               Player.data.scrollStop = false;
             } else {
               Player.data.recomsPlaylist = Player.data.recomsPlaylist.concat(list);
-              Player.renderAudioList(list, el);
+              Player.renderAudioList(list, el, () => {
+                Player.data.scrollStop = false;
+              });
             }
           });
        } else if (playlistName == "searchPlaylist") {
@@ -145,13 +147,17 @@ emitter.on("auth", (VK, settings) => {
          VK.audioUtils.search({
            q: query
          }).then((r) => {
-           Player.renderAudioList(r, el, length, length + 50);
+           Player.renderAudioList(r, el, length, length + 50, () => {
+             Player.data.scrollStop = false;
+           });
          });
        } else {
          if (length >= Player.data.mainPlaylist.length) {
            Player.data.scrollStop = false;
          } else {
-           Player.renderAudioList(Player.data[playlistName], el, length, length + 50);
+           Player.renderAudioList(Player.data[playlistName], el, length, length + 50, () => {
+             Player.data.scrollStop = false;
+           });
          }
        }
       } else if (el.scrollTop < 400 && Player.data.currentTab !== "playlists_audio_list") {

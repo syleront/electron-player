@@ -198,7 +198,6 @@ module.exports = function (VK, Settings) {
           var el = createAudioElement(e, audioNode);
           node.appendChild(el);
         });
-        this.data.scrollStop = false;
         if (typeof arguments[arguments.length - 1] == "function") arguments[arguments.length - 1]();
       });
     },
@@ -211,7 +210,6 @@ module.exports = function (VK, Settings) {
           el.childNodes[3].innerHTML = e.title;
           el.addEventListener("click", () => {
             $(node).animateCss('fadeOut', () => {
-              this.data.scrollStop = true;
               node.style.display = "none";
               Player.showTempContainer(node, null, (container) => {
                 VK.audioUtils.getFullPlaylist({
@@ -306,7 +304,6 @@ module.exports = function (VK, Settings) {
               loadElement("html_plains/back_button.html").then((btn) => {
                 $(Player.controls.tabs.sub.search).animateCss('fadeOut', () => {
                   Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
-                    Player.data.scrollStop = true;
                     btn.addEventListener("click", () => {
                       $(albumsContainer).animateCss('fadeOut', () => {
                         Player.data.scrollStop = false;
