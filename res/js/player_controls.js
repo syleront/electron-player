@@ -553,7 +553,7 @@ module.exports = function (VK, Settings) {
           Player.playPrev();
         }
       }, {
-        tooltip: 'Play',
+        tooltip: paused ? 'Play' : "Pause",
         icon: paused ? path.join(__dirname, 'img/play.png') : path.join(__dirname, 'img/pause.png'),
         click() {
           Player.playPause();
