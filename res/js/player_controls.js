@@ -1,21 +1,20 @@
 /* jshint esversion: 6 */
 
-var ex = function (VK, Settings) {
+module.exports = function (VK, Settings) {
   const Audio = document.createElement("audio");
   const playerEmitter = new EventEmitter();
   const fs = require("fs");
+  const { remote } = require('electron');
+  const currentWindow = remote.getCurrentWindow();
 
   var Player = {
     data: {
       currentTab: "main_audio_list",
       currentTabPlaylistName: "mainPlaylist",
       currentSubtabId: "main_audio_list__mainPlaylist",
-      currentTracklist: [],
-      currentTracklistInfo: {
-        fromTab: "main_audio_list"
-      }
+      currentTracklist: []
     },
-    buttons: {
+    controls: {
       play: document.getElementById("play_button"),
       prev: document.getElementById("prev_button"),
       next: document.getElementById("next_button"),
@@ -77,7 +76,6 @@ var ex = function (VK, Settings) {
     },
     setCurrentTabTracklist: function () {
       this.data.currentTracklist = this.getCurrentTabTracklist();
-      this.data.currentTracklistInfo.fromTab = this.data.currentTab;
       return this.data.currentTracklist;
     },
     getTrackinfoFromTracklist: function (id) {
@@ -125,7 +123,7 @@ var ex = function (VK, Settings) {
       }).then(() => {
         if (trackInfo.url) {
           this.data.rangeInputBreak = false;
-          this.buttons.range.max = trackInfo.duration;
+          this.controls.range.max = trackInfo.duration;
           Audio.src = trackInfo.url;
           Audio.play().then(() => {
             crossfade(true).then(() => { });
@@ -138,7 +136,7 @@ var ex = function (VK, Settings) {
           }).then((r) => {
             if (!r.length) return this.playNext();
             this.data.rangeInputBreak = false;
-            this.buttons.range.max = r[0].duration;
+            this.controls.range.max = r[0].duration;
             Audio.src = r[0].url;
             Audio.play().then(() => {
               crossfade(true).then(() => { });
@@ -244,53 +242,56 @@ var ex = function (VK, Settings) {
     }
   };
 
-  Audio.volume = 1;
-  Player.buttons.volume.value = Audio.volume * 100;
-  changeInputColor(Player.buttons.volume);
-  changeInputColor(Player.buttons.range);
+  Audio.volume = Settings.volume || 1;
+  Player.controls.volume.value = Audio.volume * 100;
+  changeInputColor(Player.controls.volume);
+  changeInputColor(Player.controls.range);
+  setThumbarButtons(true);
 
-  Player.buttons.play.addEventListener("click", () => {
+  Player.controls.play.addEventListener("click", () => {
     Player.playPause();
   });
 
-  Player.buttons.next.addEventListener("click", () => {
+  Player.controls.next.addEventListener("click", () => {
     Player.playNext();
   });
 
-  Player.buttons.prev.addEventListener("click", () => {
+  Player.controls.prev.addEventListener("click", () => {
     Player.playPrev();
   });
 
-  Player.buttons.volume.addEventListener("input", () => {
-    Audio.volume = Player.buttons.volume.value / 100;
-    changeInputColor(Player.buttons.volume);
+  Player.controls.volume.addEventListener("input", () => {
+    Audio.volume = Player.controls.volume.value / 100;
+    changeInputColor(Player.controls.volume);
   });
 
-  Player.buttons.volume.addEventListener("change", () => {
-    Audio.volume = Player.buttons.volume.value / 100;
-    changeInputColor(Player.buttons.volume);
+  Player.controls.volume.addEventListener("change", () => {
+    Audio.volume = Player.controls.volume.value / 100;
+    changeInputColor(Player.controls.volume);
+    Settings.volume = Audio.volume;
+    Settings.save();
   });
 
-  Player.buttons.range.addEventListener("input", (event) => {
+  Player.controls.range.addEventListener("input", (event) => {
     Player.data.rangeInputBreak = true;
-    Player.buttons.time.innerText = secondsToString(event.target.value);
-    changeInputColor(Player.buttons.range);
+    Player.controls.time.innerText = secondsToString(event.target.value);
+    changeInputColor(Player.controls.range);
   });
 
-  Player.buttons.range.addEventListener("change", () => {
+  Player.controls.range.addEventListener("change", () => {
     Player.data.rangeInputBreak = false;
-    Audio.currentTime = Player.buttons.range.value;
-    changeInputColor(Player.buttons.range);
+    Audio.currentTime = Player.controls.range.value;
+    changeInputColor(Player.controls.range);
   });
 
-  Player.buttons.search_box.addEventListener("keyup", (evt) => {
+  Player.controls.search_box.addEventListener("keyup", (evt) => {
     if (evt.keyCode == 13) {
       if (Player.data.searchProcessing) return;
-      if (Player.data.search) Player.buttons.tabs.sub.search.innerHTML = "";
+      if (Player.data.search) Player.controls.tabs.sub.search.innerHTML = "";
       Player.data.search = true;
       Player.data.searchProcessing = true;
-      Player.buttons.tabs.search_audio_list.click();
-      var query = Player.buttons.search_box.value;
+      Player.controls.tabs.search_audio_list.click();
+      var query = Player.controls.search_box.value;
       Player.data.currentSearchQuery = query;
       Player.data.currentTabPlaylistName = "searchPlaylist";
       VK.audioUtils.searchSection({
@@ -299,13 +300,12 @@ var ex = function (VK, Settings) {
         return VK.audioUtils.loadPlaylistsBlock({
           block_id: r.albumsBlockId
         }).then((albums) => {
-          console.log(albums)
           return loadElement("html_plains/search_box_albums_header.html").then((el) => {
             el.childNodes[3].addEventListener("click", () => {
               Player.data.scrollStop = true;
               loadElement("html_plains/back_button.html").then((btn) => {
-                $(Player.buttons.tabs.sub.search).animateCss('fadeOut', () => {
-                  Player.showTempContainer(Player.buttons.tabs.sub.search, null, (albumsContainer) => {
+                $(Player.controls.tabs.sub.search).animateCss('fadeOut', () => {
+                  Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
                     Player.data.scrollStop = true;
                     btn.addEventListener("click", () => {
                       $(albumsContainer).animateCss('fadeOut', () => {
@@ -320,9 +320,9 @@ var ex = function (VK, Settings) {
                 });
               });
             });
-            Player.buttons.tabs.sub.search.appendChild(el);
-            $(Player.buttons.tabs.sub.search).animateCss('fadeIn');
-            Player.renderPlaylists(albums.items.slice(0, 5), Player.buttons.tabs.sub.search);
+            Player.controls.tabs.sub.search.appendChild(el);
+            $(Player.controls.tabs.sub.search).animateCss('fadeIn');
+            Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
           });
         });
       }).catch(() => { }).then(() => {
@@ -332,8 +332,8 @@ var ex = function (VK, Settings) {
           loadElement("html_plains/search_box_albums_header.html").then((el) => {
             el.childNodes[1].innerHTML = "Все аудиозаписи";
             el.childNodes[3].remove();
-            Player.buttons.tabs.sub.search.appendChild(el);
-            Player.renderAudioList(list, Player.buttons.tabs.sub.search, 0, 50, () => {
+            Player.controls.tabs.sub.search.appendChild(el);
+            Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
               Player.data.searchProcessing = false;
             });
           });
@@ -345,9 +345,9 @@ var ex = function (VK, Settings) {
   Audio.addEventListener("timeupdate", () => {
     if (Player.data.rangeInputBreak) return;
     var value = Math.ceil(Audio.currentTime);
-    Player.buttons.range.value = value;
-    Player.buttons.time.innerText = secondsToString(value);
-    changeInputColor(Player.buttons.range);
+    Player.controls.range.value = value;
+    Player.controls.time.innerText = secondsToString(value);
+    changeInputColor(Player.controls.range);
   });
 
   Audio.addEventListener("ended", () => {
@@ -356,59 +356,62 @@ var ex = function (VK, Settings) {
 
   playerEmitter.on("play", (id) => {
     Player.setTrackNodesStatus(id, true);
-    Player.buttons.play.innerHTML = "pause";
+    Player.controls.play.innerHTML = "pause";
     if (Settings.cover_spin) {
-      Player.buttons.cover.style.animationPlayState = "running";
+      Player.controls.cover.style.animationPlayState = "running";
     }
+    setThumbarButtons(false);
   });
 
   playerEmitter.on("pause", (id) => {
     Player.setTrackNodesStatus(id, false);
-    Player.buttons.play.innerHTML = "play_arrow";
+    Player.controls.play.innerHTML = "play_arrow";
     if (Settings.cover_spin) {
-      Player.buttons.cover.style.animationPlayState = "paused";
+      Player.controls.cover.style.animationPlayState = "paused";
     }
+    setThumbarButtons(true);
   });
 
   playerEmitter.on("set_track", (newId, oldId) => {
     var trackInfo = Player.getTrackinfoFromTracklist(newId);
     if (oldId) Player.setTrackNodesStatus(oldId, false);
     Player.setTrackNodesStatus(newId, true);
-    Player.buttons.range.value = 0;
-    changeInputColor(Player.buttons.range);
-    Player.buttons.play.innerHTML = "pause";
-    Player.buttons.title.innerHTML = trackInfo.title;
-    Player.buttons.artist.innerHTML = trackInfo.artist;
-    Player.buttons.full_time.innerText = secondsToString(trackInfo.duration);
-    Player.buttons.time.innerText = "0:00";
-    Player.buttons.cover.style.animationPlayState = "running";
+    Player.controls.range.value = 0;
+    Player.controls.play.innerHTML = "pause";
+    Player.controls.title.innerHTML = trackInfo.title;
+    Player.controls.artist.innerHTML = trackInfo.artist;
+    Player.controls.full_time.innerText = secondsToString(trackInfo.duration);
+    Player.controls.time.innerText = "0:00";
+    Player.controls.cover.style.animationPlayState = "running";
+    changeInputColor(Player.controls.range);
+    setThumbarButtons(false);
     VK.audioUtils.getAudioCover(trackInfo).then((r) => {
       var url = r || "res/html/img/nonsrc.svg";
-      if (!Player.buttons.cover.src_orig && !r) return;
-      if (Player.buttons.cover.src_orig !== url) {
-        if (Player.buttons.cover.classList.contains("animation-spin")) {
-          Player.buttons.cover.classList.remove("animation-spin");
+      if (!Player.controls.cover.src_orig && !r) return;
+      if (Player.controls.cover.src_orig !== url) {
+        if (Player.controls.cover.classList.contains("animation-spin")) {
+          Player.controls.cover.classList.remove("animation-spin");
         }
-        $(Player.buttons.cover).animateCss("fadeOut superfaster", () => {
-          Player.buttons.cover.style.opacity = "0";
-          Player.buttons.cover.src = url;
-          Player.buttons.cover.src_orig = url;
+        $(Player.controls.cover).animateCss("fadeOut superfaster", () => {
+          Player.controls.cover.style.opacity = "0";
+          Player.controls.cover.src = url;
+          Player.controls.cover.src_orig = url;
           if (!Settings.cover_spin) {
-            if (!r && Player.buttons.cover.classList.contains("shadowbox")) {
-              Player.buttons.cover.classList.remove("shadowbox");
-            } else if (r && !Player.buttons.cover.classList.contains("shadowbox")) {
-              Player.buttons.cover.classList.add("shadowbox");
+            if (!r && Player.controls.cover.classList.contains("shadowbox")) {
+              Player.controls.cover.classList.remove("shadowbox");
+            } else if (r && !Player.controls.cover.classList.contains("shadowbox")) {
+              Player.controls.cover.classList.add("shadowbox");
             }
           }
-          Player.buttons.cover.onload = function () {
-            Player.buttons.cover.style.opacity = "1";
-            $(Player.buttons.cover).animateCss("fadeIn superfaster", () => {
-              Player.buttons.cover.classList.remove("animated");
-              Player.buttons.cover.classList.remove("fadeOut");
-              Player.buttons.cover.classList.remove("superfaster");
+          Player.controls.cover.onload = function () {
+            Player.controls.cover.style.opacity = "1";
+            $(Player.controls.cover).animateCss("fadeIn superfaster", () => {
+              Player.controls.cover.classList.remove("animated");
+              Player.controls.cover.classList.remove("fadeOut");
+              Player.controls.cover.classList.remove("superfaster");
               if (Settings.cover_spin) {
-                Player.buttons.cover.classList.add("animation-spin");
-                Player.buttons.cover.style.animationPlayState = "running";
+                Player.controls.cover.classList.add("animation-spin");
+                Player.controls.cover.style.animationPlayState = "running";
               }
             });
           };
@@ -422,7 +425,7 @@ var ex = function (VK, Settings) {
       if (up) Audio.volume = 0;
       var time = 400;
       var step = Math.sqrt(time).toFixed(2);
-      var vol = Player.buttons.volume.value / 100;
+      var vol = Player.controls.volume.value / 100;
       var i = setInterval(() => {
         var n;
         if (up) {
@@ -482,7 +485,7 @@ var ex = function (VK, Settings) {
     var bodyStyles = window.getComputedStyle(document.body);
     var fromColor = bodyStyles.getPropertyValue('--slider-line-after-color');
     var toColor = bodyStyles.getPropertyValue('--slider-line-before-color');
-    var val = ($(node).val() - $(node).attr('min')) / ($(node).attr('max') - $(node).attr('min'));
+    var val = (node.value - node.getAttribute('min')) / (node.getAttribute('max') - node.getAttribute('min'));
 
     node.setAttribute("style", "background-image: -webkit-gradient(linear, left top, right top, " +
       "color-stop(" + val + ", " + fromColor + ")," +
@@ -541,7 +544,30 @@ var ex = function (VK, Settings) {
     }
   }
 
+  function setThumbarButtons(paused) {
+    var buttonsList = [
+      {
+        tooltip: 'Prev',
+        icon: path.join(__dirname, 'img/prev.png'),
+        click() {
+          Player.playPrev();
+        }
+      }, {
+        tooltip: 'Play',
+        icon: paused ? path.join(__dirname, 'img/play.png') : path.join(__dirname, 'img/pause.png'),
+        click() {
+          Player.playPause();
+        }
+      }, {
+        tooltip: 'Next',
+        icon: path.join(__dirname, 'img/next.png'),
+        click() {
+          Player.playNext();
+        }
+      }
+    ];
+    currentWindow.setThumbarButtons(buttonsList);
+  }
+
   return Player;
 };
-
-module.exports = ex;

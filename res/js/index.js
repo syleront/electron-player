@@ -3,10 +3,10 @@
 const vk = require("./res/js/tools/vk_site_api.js"),
   fs = require("fs"),
   path = require("path"),
-  user_settings = tryRequire("./data/settings.json"),
+  user_settings = tryRequireSettings(),
   EventEmitter = require('events');
 
-  let emitter = new EventEmitter();
+let emitter = new EventEmitter();
 
 /* window.onerror = function (msg, url, num) {
   alert("Error: " + msg + "\nWhere: " + url + "\nLine: " + num);
@@ -164,10 +164,20 @@ function createElementFromHTML(htmlString) {
   return div.firstChild;
 }
 
-function tryRequire(module) {
+function tryRequireSettings() {
+  var defaults = {
+    cover_spin: false,
+    volume: 1,
+    animations: true,
+    transitions: true,
+    save: function () {
+      fs.writeFile(path.join(__dirname, "data/settings.json"), JSON.stringify(this), () => { });
+    }
+  };
   try {
-    return require(module);
+    var s = require("./data/settings.json");
+    return Object.assign(defaults, s);
   } catch (e) {
-    return null;
+    return defaults;
   }
 }

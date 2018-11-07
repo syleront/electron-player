@@ -6,15 +6,21 @@ emitter.on("auth", (VK, settings) => {
   Player.showTempContainer = showTempContainer;
 
   if (settings.cover_spin) {
-    Player.buttons.cover.classList.add("disk");
-    Player.buttons.cover.classList.add("animation-spin");
+    Player.controls.cover.classList.add("disk");
+    Player.controls.cover.classList.add("animation-spin");
     cover_disk_center.classList.add("disk-center");
+  }
+
+  if (settings.transitions == false) {
+    var html = document.getElementsByTagName('html')[0];
+    html.style.setProperty("--fast-transition", "0s linear");
+    html.style.setProperty("--long-transition", "0s linear");
   }
 
   var sidebar_links = Array.from(document.getElementsByClassName("tab-element"));
   sidebar_links.filter((e) => e.getAttribute("tab")).forEach((e) => {
     var id = e.getAttribute("tab");
-    Player.buttons.tabs[id] = e;
+    Player.controls.tabs[id] = e;
     e.addEventListener("click", changeTab);
   });
 
@@ -25,10 +31,10 @@ emitter.on("auth", (VK, settings) => {
     var div = createContainerDiv(forTab + "__" + playlist);
     e.container_id = div.id;
     main_container.appendChild(div);
-    //Player.buttons.tabs.sub[div.id] = div;
+    //Player.controls.tabs.sub[div.id] = div;
 
     if (e.getAttribute("alias")) {
-      Player.buttons.tabs.sub[e.getAttribute("alias")] = div;
+      Player.controls.tabs.sub[e.getAttribute("alias")] = div;
     }
     if (Player.data.currentTab !== forTab) {
       e.style.display = "none";
@@ -157,12 +163,12 @@ emitter.on("auth", (VK, settings) => {
   }
 
   function changeTab(evt) {
-    Player.buttons.tabs[Player.data.currentTab].classList.remove("tab-element-selected");
-    Player.buttons.tabs[Player.data.currentTab].classList.add("map-transition");
+    Player.controls.tabs[Player.data.currentTab].classList.remove("tab-element-selected");
+    Player.controls.tabs[Player.data.currentTab].classList.add("map-transition");
 
     Player.data.currentTab = evt.target.getAttribute("tab");
-    Player.buttons.tabs[Player.data.currentTab].classList.add("tab-element-selected");
-    Player.buttons.tabs[Player.data.currentTab].classList.remove("map-transition");
+    Player.controls.tabs[Player.data.currentTab].classList.add("tab-element-selected");
+    Player.controls.tabs[Player.data.currentTab].classList.remove("map-transition");
 
     subtabs.forEach((e) => {
       var forTab = e.getAttribute("for_tab");

@@ -401,19 +401,6 @@ var VK = {
             resolve(c.coverUrl || null);
           });
         });
-        /* VK.audioUtils.getAudioById({
-          owner_id: obj.owner_id,
-          id: obj.id,
-          hashes: obj.hashes
-        }).then(([r]) => {
-          VK.audioUtils.getPlaylist({
-            owner_id: r.playlist_info.owner_id,
-            playlist_id: r.playlist_info.id,
-            access_hash: r.playlist_info.access_hash
-          }, true).then((c) => {
-            resolve(c.coverUrl || null);
-          });
-        }); */
       });
     }
   }
