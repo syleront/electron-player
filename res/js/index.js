@@ -4,7 +4,7 @@ const vk = require("./res/js/tools/vk_site_api.js"),
   fs = require("fs"),
   path = require("path"),
   user_settings = tryRequireSettings(),
-  EventEmitter = require('events');
+  EventEmitter = require("events");
 
 let emitter = new EventEmitter();
 
@@ -45,7 +45,7 @@ function renderLogin() {
       if (tmp.auth_check) {
         var code = document.getElementById("auth_code").value;
         tmp.auth_check(code).then((API) => {
-          fs.writeFile(path.join(__dirname, "data/cookies"), JSON.stringify(API.cookies), (e, d) => {
+          fs.writeFile(path.join(__dirname, "data/cookies"), JSON.stringify(API.cookies), (e) => {
             if (e) throw e;
             loadPage("player").then(() => {
               emitter.emit("auth", API, user_settings);
@@ -75,7 +75,7 @@ function renderLogin() {
         var login = document.getElementById("login").value;
         var pass = document.getElementById("password").value;
         vk.auth(login, pass).then((API) => {
-          fs.writeFile(path.join(__dirname, "data/cookies"), JSON.stringify(API.cookies), (e, d) => {
+          fs.writeFile(path.join(__dirname, "data/cookies"), JSON.stringify(API.cookies), (e) => {
             if (e) throw e;
             loadPage("player").then(() => {
               emitter.emit("auth", API, user_settings);
@@ -159,7 +159,7 @@ function loadPage(name) {
 }
 
 function createElementFromHTML(htmlString) {
-  var div = document.createElement('div');
+  var div = document.createElement("div");
   div.innerHTML = htmlString;
   return div.firstChild;
 }
@@ -170,6 +170,7 @@ function tryRequireSettings() {
     volume: 1,
     animations: true,
     transitions: true,
+    broadcast: false,
     save: function () {
       fs.writeFile(path.join(__dirname, "data/settings.json"), JSON.stringify(this), () => { });
     }

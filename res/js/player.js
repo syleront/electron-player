@@ -1,20 +1,24 @@
 /* jshint esversion: 6 */
 // тут страшно :\
 
-emitter.on("auth", (VK, settings) => {
-  const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, settings);
+emitter.on("auth", (VK, Settings) => {
+  const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, Settings);
   Player.showTempContainer = showTempContainer;
 
-  if (settings.cover_spin) {
+  if (Settings.cover_spin) {
     Player.controls.cover.classList.add("disk");
     Player.controls.cover.classList.add("animation-spin");
     cover_disk_center.classList.add("disk-center");
   }
 
-  if (settings.transitions == false) {
-    var html = document.getElementsByTagName('html')[0];
+  if (Settings.transitions == false) {
+    var html = document.getElementsByTagName("html")[0];
     html.style.setProperty("--fast-transition", "0s linear");
     html.style.setProperty("--long-transition", "0s linear");
+  }
+
+  if (Settings.broadcast) {
+    Player.controls.broadcast.classList.add("active");
   }
 
   var sidebar_links = Array.from(document.getElementsByClassName("tab-element"));
@@ -73,20 +77,20 @@ emitter.on("auth", (VK, settings) => {
         if (playlist == "playlistsPlaylist") {
           VK.audioUtils.getUserPlaylists().then((r) => {
             Player.renderPlaylists(r, tabNode, () => {
-              $(tabNode).animateCss('fadeIn veryfaster');
+              $(tabNode).animateCss("fadeIn veryfaster");
               tabNode.loaded = true;
             });
           });
         } else if (playlist !== "searchPlaylist") {
           Player.renderAudioList(Player.data[playlist], tabNode, 0, 50, () => {
-            $(tabNode).animateCss('fadeIn veryfaster');
+            $(tabNode).animateCss("fadeIn veryfaster");
             tabNode.loaded = true;
           });
         } else {
-          $(tabNode).animateCss('fadeIn veryfaster');
+          $(tabNode).animateCss("fadeIn veryfaster");
         }
       } else {
-        $(tabNode).animateCss('fadeIn veryfaster');
+        $(tabNode).animateCss("fadeIn veryfaster");
       }
     });
   });
@@ -208,12 +212,12 @@ emitter.on("auth", (VK, settings) => {
     return div;
   }
 
-  function loadElement(p) {
+  /* function loadElement(p) {
     return new Promise((resolve, reject) => {
       fs.readFile(path.join(__dirname, p), (e, d) => {
         if (e) return reject(e);
         else resolve(createElementFromHTML(d));
       });
     });
-  }
+  } */
 });

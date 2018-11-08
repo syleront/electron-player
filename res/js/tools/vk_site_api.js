@@ -1,6 +1,6 @@
 /* jshint esversion: 6 */
 
-var needle = require('needle');
+var needle = require("needle");
 var audioUnmaskSource = require("./audioUnmaskSource.js");
 
 var options = {
@@ -26,7 +26,7 @@ var VK = {
           ip_h: ip_h[1],
           lg_h: lg_h[1],
         };
-        needle.post("https://login.vk.com/?act=login", data, options, (e, r, b) => {
+        needle.post("https://login.vk.com/?act=login", data, options, (e, r) => {
           if (e) throw e;
           options.cookies = Object.assign(options.cookies, r.cookies);
           needle.get(r.headers.location, options, (e, r, b) => {
@@ -85,7 +85,7 @@ var VK = {
             text: b
           });
         } else {
-          needle.get("https://vk.com/" + url[1], options, (e, r, b) => {
+          needle.get("https://vk.com/" + url[1], options, (e, r) => {
             if (e) throw e;
             options.cookies = Object.assign(options.cookies, r.cookies);
             resolve(this.load(options.cookies));
@@ -102,7 +102,7 @@ var VK = {
         var hash = b.match(/Dev\.methodRun\('([A-z0-9:]+)/i);
         if (!hash) return reject({ code: 3, error: "incorect login or password" });
         VK.api = function (method, params) {
-          return new Promise((resolve, reject) => {
+          return new Promise((resolve) => {
             var data = {
               param_code: "return API." + method + "(" + JSON.stringify(params) + ");",
               act: "a_run_method",
@@ -127,7 +127,7 @@ var VK = {
   },
   audioUtils: {
     search: function (obj) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "load_section",
           al: 1,
@@ -168,7 +168,7 @@ var VK = {
             var links = b.replace(/\n/g, "").match(/<a(.+?)<h2>Альбомы<\/h2>/g);
             if (links) {
               links = links[0].match(/<a(.+?)<\/a>/g);
-              var blockId = links[links.length - 1].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));;
+              var blockId = links[links.length - 1].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));
               b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
               b.playlists.forEach((e, i) => {
                 b.playlists[i].list = audioListToObj(e.list);
@@ -184,7 +184,7 @@ var VK = {
       });
     },
     loadPlaylistsBlock: function (obj) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "load_playlists_block",
           al: 1,
@@ -202,7 +202,7 @@ var VK = {
               e[1].access_hash = playlistIds[i];
               return e[1];
             });
-            b.items.forEach((e, i) => {
+            b.items.forEach((e) => {
               var p = e.photo.angles[0].m;
               e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
             });
@@ -211,7 +211,7 @@ var VK = {
       });
     },
     getPlaylist: function (obj, dontTransformList) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           access_hash: obj.access_hash || "",
           act: "load_section",
@@ -238,7 +238,7 @@ var VK = {
       });
     },
     getFullPlaylist: function (obj) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         var container = [];
         (function get(offset) {
           VK.audioUtils.getPlaylist(Object.assign(obj || {}, { offset })).then(([list, r]) => {
@@ -254,7 +254,7 @@ var VK = {
     },
     getUserPlaylists: function (obj) {
       if (!obj) obj = {};
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "section",
           al: 1,
@@ -266,7 +266,7 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var elems = b.match(/<a\shref=\"\/audio.+?>/g);
+            var elems = b.match(/<a\shref="\/audio.+?>/g);
             var titles = b.match(/<a\sclass="audio_item__title".+?>(.+?)</g);
             var playlists = [];
             elems.forEach((e, i) => {
@@ -288,7 +288,7 @@ var VK = {
       });
     },
     getAudioById: function (obj) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "reload_audio",
           al: 1,
@@ -305,7 +305,7 @@ var VK = {
     },
     getRecomendations: function (obj) {
       if (!obj) obj = {};
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "load_section",
           owner_id: VK.user_id,
@@ -325,7 +325,7 @@ var VK = {
     },
     addAudio: function (obj) {
       if (!obj) obj = {};
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           al: 1,
           act: "add",
@@ -345,7 +345,7 @@ var VK = {
     },
     deleteAudio: function (obj) {
       if (!obj) obj = {};
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           al: 1,
           act: "delete_audio",
@@ -364,7 +364,7 @@ var VK = {
     },
     restoreAudio: function (obj) {
       if (!obj) obj = {};
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           al: 1,
           act: "restore_audio",
@@ -381,7 +381,7 @@ var VK = {
       });
     },
     getAudioCover: function (obj) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         Promise.resolve().then(() => {
           if (obj.playlist_info) {
             return obj;
@@ -401,6 +401,23 @@ var VK = {
             resolve(c.coverUrl || null);
           });
         });
+      });
+    },
+    setStatus: function (obj) {
+      if (!obj) obj = {};
+      return new Promise((resolve) => {
+        needle.post("https://vk.com/al_audio.php", {
+          al: 1,
+          act: "audio_status",
+          full_id: obj.owner_id + "_" + obj.id,
+          top: 0
+        }, {
+            multipart: true,
+            cookies: VK.cookies
+          }, (e, r, b) => {
+            if (e) throw e;
+            resolve(b);
+          });
       });
     }
   }

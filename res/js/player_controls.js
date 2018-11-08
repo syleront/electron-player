@@ -1,11 +1,11 @@
 /* jshint esversion: 6 */
 
 module.exports = function (VK, Settings) {
+  const { remote, ipcRenderer } = require("electron");
+  const currentWindow = remote.getCurrentWindow();
+  const fs = require("fs");
   const Audio = document.createElement("audio");
   const playerEmitter = new EventEmitter();
-  const fs = require("fs");
-  const { remote } = require('electron');
-  const currentWindow = remote.getCurrentWindow();
 
   var Player = {
     data: {
@@ -26,6 +26,9 @@ module.exports = function (VK, Settings) {
       full_time: document.getElementById("player_full_time"),
       cover: document.getElementById("track_cover"),
       search_box: document.getElementById("search_box"),
+      shuffle: document.getElementById("shuffle_button"),
+      repeat: document.getElementById("repeat_button"),
+      broadcast: document.getElementById("broadcast_button"),
       tabs: {
         sub: {}
       }
@@ -76,6 +79,10 @@ module.exports = function (VK, Settings) {
     },
     setCurrentTabTracklist: function () {
       this.data.currentTracklist = this.getCurrentTabTracklist();
+      if (Player.data.shuffle == true) {
+        this.data.nonShuffledCurrentTracklist = this.data.currentTracklist.slice(0);
+        this.data.currentTracklist.sort(() => Math.random() - 0.5);
+      }
       return this.data.currentTracklist;
     },
     getTrackinfoFromTracklist: function (id) {
@@ -108,7 +115,7 @@ module.exports = function (VK, Settings) {
       if (!trackInfo) return;
       playerEmitter.emit("set_track", id, (this.data.currentTrackId || false));
       this.data.currentTrackId = id;
-      new Promise((resolve, reject) => {
+      new Promise((resolve) => {
         this.data.rangeInputBreak = true;
         if (this.data.currentTrackId) {
           if (Audio.paused) {
@@ -173,7 +180,7 @@ module.exports = function (VK, Settings) {
         var newId = this.data.currentTracklist[currentTrackIndex + 1].attachment_id;
         this.setTrack(newId);
       } else {
-        this.loadAdditionalTracksToCurrentTracklist().then((list) => {
+        this.loadAdditionalTracksToCurrentTracklist().then(() => {
           this.setTrack(this.data.currentTracklist[currentTrackIndex + 1].attachment_id);
         }).catch(() => {
           this.setTrack(this.data.currentTracklist[0].attachment_id);
@@ -194,7 +201,7 @@ module.exports = function (VK, Settings) {
     },
     renderAudioList: function (list, node, from, to) {
       loadElement("html_plains/audio_element.html").then((audioNode) => {
-        (typeof from == "number" ? list.slice(from, to) : list).forEach((e, i) => {
+        (typeof from == "number" ? list.slice(from, to) : list).forEach((e) => {
           var el = createAudioElement(e, audioNode);
           node.appendChild(el);
         });
@@ -209,7 +216,7 @@ module.exports = function (VK, Settings) {
           el.childNodes[1].src = e.picture || el.childNodes[1].src;
           el.childNodes[3].innerHTML = e.title;
           el.addEventListener("click", () => {
-            $(node).animateCss('fadeOut', () => {
+            $(node).animateCss("fadeOut", () => {
               node.style.display = "none";
               Player.showTempContainer(node, null, (container) => {
                 VK.audioUtils.getFullPlaylist({
@@ -219,14 +226,14 @@ module.exports = function (VK, Settings) {
                 }).then((r) => {
                   loadElement("html_plains/back_button.html").then((btn) => {
                     btn.addEventListener("click", () => {
-                      $(container).animateCss('fadeOut', () => {
+                      $(container).animateCss("fadeOut", () => {
                         container.close();
-                        $(node).animateCss('fadeIn veryfaster');
+                        $(node).animateCss("fadeIn veryfaster");
                       });
                     });
                     this.renderAudioList(r, container, () => {
                       container.insertAdjacentElement("afterbegin", btn);
-                      $(container).animateCss('fadeIn');
+                      $(container).animateCss("fadeIn");
                     });
                   });
                 });
@@ -284,59 +291,51 @@ module.exports = function (VK, Settings) {
 
   Player.controls.search_box.addEventListener("keyup", (evt) => {
     if (evt.keyCode == 13) {
-      if (Player.data.searchProcessing) return;
-      if (Player.data.search) Player.controls.tabs.sub.search.innerHTML = "";
-      Player.data.search = true;
-      Player.data.searchProcessing = true;
-      Player.controls.tabs.search_audio_list.click();
-      var query = Player.controls.search_box.value;
-      Player.data.currentSearchQuery = query;
-      Player.data.currentTabPlaylistName = "searchPlaylist";
-      VK.audioUtils.searchSection({
-        q: query
-      }).then((r) => {
-        return VK.audioUtils.loadPlaylistsBlock({
-          block_id: r.albumsBlockId
-        }).then((albums) => {
-          return loadElement("html_plains/search_box_albums_header.html").then((el) => {
-            el.childNodes[3].addEventListener("click", () => {
-              Player.data.scrollStop = true;
-              loadElement("html_plains/back_button.html").then((btn) => {
-                $(Player.controls.tabs.sub.search).animateCss('fadeOut', () => {
-                  Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
-                    btn.addEventListener("click", () => {
-                      $(albumsContainer).animateCss('fadeOut', () => {
-                        Player.data.scrollStop = false;
-                        albumsContainer.close();
-                      });
-                    });
-                    albumsContainer.appendChild(btn);
-                    Player.renderPlaylists(albums.items, albumsContainer);
-                    $(albumsContainer).animateCss('fadeIn');
-                  });
-                });
-              });
-            });
-            Player.controls.tabs.sub.search.appendChild(el);
-            $(Player.controls.tabs.sub.search).animateCss('fadeIn');
-            Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
-          });
-        });
-      }).catch(() => { }).then(() => {
-        VK.audioUtils.search({
-          q: query
-        }).then((list) => {
-          loadElement("html_plains/search_box_albums_header.html").then((el) => {
-            el.childNodes[1].innerHTML = "Все аудиозаписи";
-            el.childNodes[3].remove();
-            Player.controls.tabs.sub.search.appendChild(el);
-            Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
-              Player.data.searchProcessing = false;
-            });
-          });
-        });
+      searchHandler(Player.controls.search_box.value);
+    }
+  });
+
+  Player.controls.shuffle.addEventListener("click", () => {
+    if (Player.data.shuffle == true) {
+      Player.data.shuffle = false;
+      Player.controls.shuffle.classList.remove("active");
+      Player.data.currentTracklist = Player.data.nonShuffledCurrentTracklist;
+      delete Player.data.nonShuffledCurrentTracklist;
+    } else {
+      Player.data.shuffle = true;
+      Player.controls.shuffle.classList.add("active");
+      Player.data.nonShuffledCurrentTracklist = Player.data.currentTracklist.slice(0);
+      Player.data.currentTracklist.sort(() => Math.random() - 0.5);
+    }
+  });
+
+  Player.controls.repeat.addEventListener("click", () => {
+    if (Player.data.repeat == true) {
+      Player.data.repeat = false;
+      Player.controls.repeat.classList.remove("active");
+    } else {
+      Player.data.repeat = true;
+      Player.controls.repeat.classList.add("active");
+    }
+  });
+
+  Player.controls.broadcast.addEventListener("click", () => {
+    if (Settings.broadcast == true) {
+      Settings.broadcast = false;
+      Player.controls.broadcast.classList.remove("active");
+    } else {
+      Settings.broadcast = true;
+      Player.controls.broadcast.classList.add("active");
+      VK.api("audio.setBroadcast", {
+        audio: Player.data.currentTrackId
       });
     }
+    Settings.save();
+  });
+
+  Player.controls.artist.addEventListener("click", () => {
+    var query = Player.controls.artist.innerHTML;
+    searchHandler(query);
   });
 
   Audio.addEventListener("timeupdate", () => {
@@ -348,7 +347,11 @@ module.exports = function (VK, Settings) {
   });
 
   Audio.addEventListener("ended", () => {
-    Player.playNext();
+    if (Player.data.repeat) {
+      Audio.play();
+    } else {
+      Player.playNext();
+    }
   });
 
   playerEmitter.on("play", (id) => {
@@ -415,10 +418,19 @@ module.exports = function (VK, Settings) {
         });
       }
     });
+    if (Settings.broadcast) {
+      VK.api("audio.setBroadcast", {
+        audio: trackInfo.owner_id + "_" + trackInfo.id
+      });
+    }
+  });
+
+  ipcRenderer.on("mediaKeyPressed", (event, data) => {
+    Player[data.funcName]();
   });
 
   function crossfade(up) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (up) Audio.volume = 0;
       var time = 400;
       var step = Math.sqrt(time).toFixed(2);
@@ -480,14 +492,70 @@ module.exports = function (VK, Settings) {
 
   function changeInputColor(node) {
     var bodyStyles = window.getComputedStyle(document.body);
-    var fromColor = bodyStyles.getPropertyValue('--slider-line-after-color');
-    var toColor = bodyStyles.getPropertyValue('--slider-line-before-color');
-    var val = (node.value - node.getAttribute('min')) / (node.getAttribute('max') - node.getAttribute('min'));
+    var fromColor = bodyStyles.getPropertyValue("--slider-line-after-color");
+    var toColor = bodyStyles.getPropertyValue("--slider-line-before-color");
+    var val = (node.value - node.getAttribute("min")) / (node.getAttribute("max") - node.getAttribute("min"));
 
     node.setAttribute("style", "background-image: -webkit-gradient(linear, left top, right top, " +
       "color-stop(" + val + ", " + fromColor + ")," +
       "color-stop(" + val + ", " + toColor + ")" +
       ")");
+  }
+
+  function searchHandler(query) {
+    if (Player.data.searchProcessing) return;
+    if (Player.data.search) Player.controls.tabs.sub.search.innerHTML = "";
+    Player.data.search = true;
+    Player.data.searchProcessing = true;
+    Player.controls.tabs.search_audio_list.click();
+    Player.controls.search_box.value = query;
+    //var query = Player.controls.search_box.value;
+    Player.data.currentSearchQuery = query;
+    Player.data.currentTabPlaylistName = "searchPlaylist";
+    VK.audioUtils.searchSection({
+      q: query
+    }).then((r) => {
+      return VK.audioUtils.loadPlaylistsBlock({
+        block_id: r.albumsBlockId
+      }).then((albums) => {
+        return loadElement("html_plains/search_box_albums_header.html").then((el) => {
+          el.childNodes[3].addEventListener("click", () => {
+            Player.data.scrollStop = true;
+            loadElement("html_plains/back_button.html").then((btn) => {
+              $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
+                Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
+                  btn.addEventListener("click", () => {
+                    $(albumsContainer).animateCss("fadeOut", () => {
+                      Player.data.scrollStop = false;
+                      albumsContainer.close();
+                    });
+                  });
+                  albumsContainer.appendChild(btn);
+                  Player.renderPlaylists(albums.items, albumsContainer);
+                  $(albumsContainer).animateCss("fadeIn");
+                });
+              });
+            });
+          });
+          Player.controls.tabs.sub.search.appendChild(el);
+          $(Player.controls.tabs.sub.search).animateCss("fadeIn");
+          Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
+        });
+      });
+    }).catch(() => { }).then(() => {
+      VK.audioUtils.search({
+        q: query
+      }).then((list) => {
+        loadElement("html_plains/search_box_albums_header.html").then((el) => {
+          el.childNodes[1].innerHTML = "Все аудиозаписи";
+          el.childNodes[3].remove();
+          Player.controls.tabs.sub.search.appendChild(el);
+          Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
+            Player.data.searchProcessing = false;
+          });
+        });
+      });
+    });
   }
 
   function addTrackHandler(evt) {
@@ -502,7 +570,7 @@ module.exports = function (VK, Settings) {
         owner_id: track.owner_id,
         id: track.id,
         hashes_string: track.hashes_string
-      }).then((r) => {
+      }).then(() => {
         node.childNodes[5].innerHTML = "add";
         if (Player.data.currentTab == "main_audio_list") {
           node.classList.add("audio-removed");
@@ -544,20 +612,20 @@ module.exports = function (VK, Settings) {
   function setThumbarButtons(paused) {
     var buttonsList = [
       {
-        tooltip: 'Prev',
-        icon: path.join(__dirname, 'img/prev.png'),
+        tooltip: "Prev",
+        icon: path.join(__dirname, "img/prev.png"),
         click() {
           Player.playPrev();
         }
       }, {
-        tooltip: paused ? 'Play' : "Pause",
-        icon: paused ? path.join(__dirname, 'img/play.png') : path.join(__dirname, 'img/pause.png'),
+        tooltip: paused ? "Play" : "Pause",
+        icon: paused ? path.join(__dirname, "img/play.png") : path.join(__dirname, "img/pause.png"),
         click() {
           Player.playPause();
         }
       }, {
-        tooltip: 'Next',
-        icon: path.join(__dirname, 'img/next.png'),
+        tooltip: "Next",
+        icon: path.join(__dirname, "img/next.png"),
         click() {
           Player.playNext();
         }
