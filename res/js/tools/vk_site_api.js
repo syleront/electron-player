@@ -184,7 +184,7 @@ var VK = {
       });
     },
     loadPlaylistsBlock: function (obj) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "load_playlists_block",
           al: 1,
@@ -195,18 +195,26 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var playlistIds = b.match(/audio\?z=audio_playlist(.+?)"/g).filter((e, i, array) => array.indexOf(e) === i).map((e) => e.match(/\/([A-z0-9]+)\\/)[1]);
-            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            b.items = Object.entries(b.items).map((e, i) => {
-              e[1].playlist_id = e[0];
-              e[1].access_hash = playlistIds[i];
-              return e[1];
-            });
-            b.items.forEach((e) => {
-              var p = e.photo.angles[0].m;
-              e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
-            });
-            resolve(b);
+            var match = b.match(/audio\?z=audio_playlist(.+?)"/g);
+            if (!match) {
+              reject({
+                error: "page isn't loaded"
+              });
+            } else {
+              var playlistIds = match.filter((e, i, array) => array.indexOf(e) === i).map((e) => e.match(/\/([A-z0-9]+)\\/)[1]);
+
+              b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+              b.items = Object.entries(b.items).map((e, i) => {
+                e[1].playlist_id = e[0];
+                e[1].access_hash = playlistIds[i];
+                return e[1];
+              });
+              b.items.forEach((e) => {
+                var p = e.photo.angles[0].m;
+                e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
+              });
+              resolve(b);
+            }
           });
       });
     },

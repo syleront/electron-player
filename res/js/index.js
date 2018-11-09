@@ -8,6 +8,10 @@ const vk = require("./res/js/tools/vk_site_api.js"),
 
 let emitter = new EventEmitter();
 
+Node.prototype.selectByClass = function (className) {
+  return this.getElementsByClassName(className)[0];
+};
+
 /* window.onerror = function (msg, url, num) {
   alert("Error: " + msg + "\nWhere: " + url + "\nLine: " + num);
   return true;

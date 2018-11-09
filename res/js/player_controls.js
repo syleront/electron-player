@@ -99,7 +99,7 @@ module.exports = function (VK, Settings) {
     },
     setTrackNodesStatus: function (id, play) {
       this.getTrackNodesById(id).forEach((e) => {
-        e.childNodes[1].innerHTML = (play ? "pause_circle_filled" : "play_circle_filled");
+        e.selectByClass("play-btn").innerHTML = (play ? "pause_circle_filled" : "play_circle_filled");
       });
     },
     isTrackInMainPlaylist: function (id, needIndex) {
@@ -213,8 +213,8 @@ module.exports = function (VK, Settings) {
         list.forEach((e) => {
           var el = pl.cloneNode(true);
           if (e.photo && e.photo.url) e.picture = e.photo.url;
-          el.childNodes[1].src = e.picture || el.childNodes[1].src;
-          el.childNodes[3].innerHTML = e.title;
+          el.selectByClass("photo").src = e.picture || el.selectByClass("photo").src;
+          el.selectByClass("title").innerHTML = e.title;
           el.addEventListener("click", () => {
             $(node).animateCss("fadeOut", () => {
               node.style.display = "none";
@@ -477,16 +477,20 @@ module.exports = function (VK, Settings) {
     var node = audioNode.cloneNode(true);
     track.track_title = track.artist + " - " + track.title;
     node.trackInfo = track;
-    node.childNodes[7].innerHTML = secondsToString(node.trackInfo.duration);
-    if (Player.isTrackInMainPlaylist(track.attachment_id) || isAdded) node.childNodes[5].innerHTML = "clear";
-    node.childNodes[5].addEventListener("click", addTrackHandler);
-    node.childNodes[3].childNodes[1].innerHTML = node.trackInfo.track_title;
+    node.selectByClass("time").innerHTML = secondsToString(node.trackInfo.duration);
+    if (Player.isTrackInMainPlaylist(track.attachment_id) || isAdded) {
+      node.selectByClass("add-btn").innerHTML = "clear";
+    }
+    node.selectByClass("add-btn").addEventListener("click", addTrackHandler);
+    node.selectByClass("title-inner").innerHTML = node.trackInfo.track_title;
     node.addEventListener("click", (evt) => {
       if (window.getSelection().isCollapsed && !evt.toElement.classList.contains("add-btn")) {
         Player.playPause(track.attachment_id);
       }
     });
-    if (node.trackInfo.attachment_id == Player.data.currentTrackId && !Audio.paused) node.childNodes[1].innerHTML = "pause_circle_filled";
+    if (node.trackInfo.attachment_id == Player.data.currentTrackId && !Audio.paused) {
+      node.selectByClass("play-btn").innerHTML = "pause_circle_filled";
+    }
     return node;
   }
 
@@ -519,7 +523,7 @@ module.exports = function (VK, Settings) {
         block_id: r.albumsBlockId
       }).then((albums) => {
         return loadElement("html_plains/search_box_albums_header.html").then((el) => {
-          el.childNodes[3].addEventListener("click", () => {
+          el.selectByClass("all-btn").addEventListener("click", () => {
             Player.data.scrollStop = true;
             loadElement("html_plains/back_button.html").then((btn) => {
               $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
@@ -541,14 +545,16 @@ module.exports = function (VK, Settings) {
           $(Player.controls.tabs.sub.search).animateCss("fadeIn");
           Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
         });
+      }).catch(() => {
+        //Player.data.searchProcessing = false;
       });
     }).catch(() => { }).then(() => {
       VK.audioUtils.search({
         q: query
       }).then((list) => {
         loadElement("html_plains/search_box_albums_header.html").then((el) => {
-          el.childNodes[1].innerHTML = "Все аудиозаписи";
-          el.childNodes[3].remove();
+          el.selectByClass("title").innerHTML = "Все аудиозаписи";
+          el.selectByClass("all-btn").remove();
           Player.controls.tabs.sub.search.appendChild(el);
           Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
             Player.data.searchProcessing = false;
@@ -571,7 +577,7 @@ module.exports = function (VK, Settings) {
         id: track.id,
         hashes_string: track.hashes_string
       }).then(() => {
-        node.childNodes[5].innerHTML = "add";
+        node.selectByClass("add-btn").innerHTML = "add";
         if (Player.data.currentTab == "main_audio_list") {
           node.classList.add("audio-removed");
           node.canBeRestored = true;
@@ -590,7 +596,7 @@ module.exports = function (VK, Settings) {
           hashes_string: track.hashes_string
         }).then(() => {
           VK.audioUtils.getAudioById(track).then((r) => {
-            node.childNodes[5].innerHTML = "clear";
+            node.selectByClass("add-btn").innerHTML = "clear";
             node.classList.remove("audio-removed");
             Player.data.mainPlaylist.unshift(r[0]);
             delete node.canBeRestored;
@@ -599,7 +605,7 @@ module.exports = function (VK, Settings) {
       } else { // if added from any tab but not from main
         VK.audioUtils.addAudio(track).then((r) => {
           node.added = r[0];
-          node.childNodes[5].innerHTML = "clear";
+          node.selectByClass("add-btn").innerHTML = "clear";
           var n = createAudioElement(r[0], audioNode, true);
           node.inMaintracklist = n;
           Player.data.mainPlaylist.unshift(r[0]);
