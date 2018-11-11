@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "VK-Promise": "^0.2.91",
+    "locutus": "^2.0.10",
     "needle": "^2.2.4"
   }
 }

@@ -27,7 +27,7 @@ function createWindow() {
   });
   mainWindow.on("page-title-updated", () => {
     var url = mainWindow.webContents.getURL();
-    if (/vk\.com\/feed/i.test(url)) {
+    if (/vk\.com/i.test(url)) {
       mainWindow.webContents.session.cookies.get({}, (error, cookies) => {
         var cookieObj = {};
         cookies.filter((e) => e.domain == ".vk.com").forEach((e) => {

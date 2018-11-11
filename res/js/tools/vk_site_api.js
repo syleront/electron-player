@@ -1,6 +1,7 @@
 /* jshint esversion: 6 */
 
 var needle = require("needle");
+var array_chunk = require("locutus/php/array/array_chunk");
 var audioUnmaskSource = require("./audioUnmaskSource.js");
 
 var options = {
@@ -165,10 +166,10 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var links = b.replace(/\n/g, "").match(/<a(.+?)<h2>Альбомы<\/h2>/g);
-            if (links) {
-              links = links[0].match(/<a(.+?)<\/a>/g);
-              var blockId = links[links.length - 1].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));
+            var albums = b.match(/<a(.+?)audio_page_block__show_all_link/gm);
+            //var artists = array_chunk(b.match(/<a(.+?)href="https:\/\/vk\.com\/artist(.+?)<\/a>/gm), 2);
+            if (albums) {
+              var blockId = albums[0].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));
               b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
               b.playlists.forEach((e, i) => {
                 b.playlists[i].list = audioListToObj(e.list);
@@ -198,22 +199,27 @@ var VK = {
             var match = b.match(/audio\?z=audio_playlist(.+?)"/g);
             if (!match) {
               reject({
-                error: "page isn't loaded"
+                error: "Page isn't loaded"
               });
             } else {
-              var playlistIds = match.filter((e, i, array) => array.indexOf(e) === i).map((e) => e.match(/\/([A-z0-9]+)\\/)[1]);
-
-              b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-              b.items = Object.entries(b.items).map((e, i) => {
-                e[1].playlist_id = e[0];
-                e[1].access_hash = playlistIds[i];
-                return e[1];
-              });
-              b.items.forEach((e) => {
-                var p = e.photo.angles[0].m;
-                e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
-              });
-              resolve(b);
+              var playlistIds = match.filter((e, i, array) => array.indexOf(e) === i).filter((e) => e.match(/\/([A-z0-9]+)\\/)).map((e) => e.match(/\/([A-z0-9]+)\\/)[1]);
+              if (!playlistIds.length) {
+                reject({
+                  error: "There's no playlists"
+                });
+              } else {
+                b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+                b.items = Object.entries(b.items).map((e, i) => {
+                  e[1].playlist_id = e[0];
+                  e[1].access_hash = playlistIds[i];
+                  return e[1];
+                });
+                b.items.forEach((e) => {
+                  var p = e.photo.angles[0].m;
+                  e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
+                });
+                resolve(b);
+              }
             }
           });
       });

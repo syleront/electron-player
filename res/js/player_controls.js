@@ -210,19 +210,21 @@ module.exports = function (VK, Settings) {
     },
     renderPlaylists: function (list, node) {
       loadElement("html_plains/playlist_element.html").then((pl) => {
-        list.forEach((e) => {
-          var el = pl.cloneNode(true);
-          if (e.photo && e.photo.url) e.picture = e.photo.url;
-          el.selectByClass("photo").src = e.picture || el.selectByClass("photo").src;
-          el.selectByClass("title").innerHTML = e.title;
-          el.addEventListener("click", () => {
+        list.forEach((playlist) => {
+          var playlistNode = pl.cloneNode(true);
+          if (playlist.photo && playlist.photo.url) playlist.picture = playlist.photo.url;
+          playlistNode.playlistInfo = playlist;
+          playlistNode.selectByClass("photo").src = playlist.picture || playlistNode.selectByClass("photo").src;
+          playlistNode.selectByClass("title").innerHTML = playlist.title;
+          playlistNode.addEventListener("click", () => {
             $(node).animateCss("fadeOut", () => {
               node.style.display = "none";
               Player.showTempContainer(node, null, (container) => {
+                console.log(playlist)
                 VK.audioUtils.getFullPlaylist({
-                  access_hash: e.access_hash || "",
-                  owner_id: e.owner_id,
-                  playlist_id: e.id || e.playlist_id
+                  access_hash: playlist.access_hash || "",
+                  owner_id: playlist.owner_id,
+                  playlist_id: playlist.id || playlist.playlist_id
                 }).then((r) => {
                   loadElement("html_plains/back_button.html").then((btn) => {
                     btn.addEventListener("click", () => {
@@ -240,7 +242,7 @@ module.exports = function (VK, Settings) {
               });
             });
           });
-          node.appendChild(el);
+          node.appendChild(playlistNode);
         });
         if (typeof arguments[arguments.length - 1] == "function") arguments[arguments.length - 1]();
       });
@@ -338,6 +340,33 @@ module.exports = function (VK, Settings) {
     searchHandler(query);
   });
 
+  Player.controls.cover.addEventListener("click", () => {
+    if (!Player.data.clickEasterEggCount) {
+      Player.data.clickEasterEggCount = 1;
+      Player.data.easterEggTimeout = setTimeout(() => {
+        delete Player.data.clickEasterEggCount;
+      }, 3000);
+    } else {
+      Player.data.clickEasterEggCount += 1;
+      if (Player.data.clickEasterEggCount == 5) {
+        clearTimeout(Player.data.easterEggTimeout);
+        $(Player.controls.cover).animateCss("fadeOut veryfaster", () => {
+          Player.controls.cover.src = "res/html/img/lenny.png";
+          $(Player.controls.cover).animateCss("fadeIn veryfaster", () => {
+            setTimeout(() => {
+              $(Player.controls.cover).animateCss("fadeOut veryfaster", () => {
+                Player.controls.cover.src = Player.data.currentCoverUrl || "res/html/img/nonsrc.svg";
+                $(Player.controls.cover).animateCss("fadeIn veryfaster", () => {
+                  delete Player.data.clickEasterEggCount;
+                });
+              });
+            }, 1000);
+          });
+        });
+      }
+    }
+  });
+
   Audio.addEventListener("timeupdate", () => {
     if (Player.data.rangeInputBreak) return;
     var value = Math.ceil(Audio.currentTime);
@@ -387,6 +416,7 @@ module.exports = function (VK, Settings) {
     setThumbarButtons(false);
     VK.audioUtils.getAudioCover(trackInfo).then((r) => {
       var url = r || "res/html/img/nonsrc.svg";
+      Player.data.currentCoverUrl = url;
       if (!Player.controls.cover.src_orig && !r) return;
       if (Player.controls.cover.src_orig !== url) {
         if (Player.controls.cover.classList.contains("animation-spin")) {
@@ -522,7 +552,7 @@ module.exports = function (VK, Settings) {
       return VK.audioUtils.loadPlaylistsBlock({
         block_id: r.albumsBlockId
       }).then((albums) => {
-        return loadElement("html_plains/search_box_albums_header.html").then((el) => {
+        loadElement("html_plains/search_box_albums_header.html").then((el) => {
           el.selectByClass("all-btn").addEventListener("click", () => {
             Player.data.scrollStop = true;
             loadElement("html_plains/back_button.html").then((btn) => {
