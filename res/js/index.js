@@ -12,6 +12,10 @@ Node.prototype.selectByClass = function (className) {
   return this.getElementsByClassName(className)[0];
 };
 
+process.on("uncaughtException", (e) => {
+  console.log("uncaughtException " + e.stack);
+});
+
 /* window.onerror = function (msg, url, num) {
   alert("Error: " + msg + "\nWhere: " + url + "\nLine: " + num);
   return true;

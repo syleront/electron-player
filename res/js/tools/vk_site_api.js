@@ -1,13 +1,18 @@
 /* jshint esversion: 6 */
 
 var needle = require("needle");
-var array_chunk = require("locutus/php/array/array_chunk");
 var audioUnmaskSource = require("./audioUnmaskSource.js");
+var prototypes = require("./prototypes");
+prototypes.init();
 
 var options = {
   multipart: true,
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0"
 };
+
+process.on("uncaughtException", (e) => {
+  console.log("uncaughtException " + e.stack);
+});
 
 var VK = {
   auth: function (email, password) {
@@ -151,7 +156,7 @@ var VK = {
           });
       });
     },
-    searchSection: function (obj) {
+    getAllSearchBlocks: function (obj) {
       return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "section",
@@ -167,15 +172,17 @@ var VK = {
           }, (e, r, b) => {
             if (e) throw e;
             var albums = b.match(/<a(.+?)audio_page_block__show_all_link/gm);
-            //var artists = array_chunk(b.match(/<a(.+?)href="https:\/\/vk\.com\/artist(.+?)<\/a>/gm), 2);
             if (albums) {
-              var blockId = albums[0].match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""));
-              b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-              b.playlists.forEach((e, i) => {
-                b.playlists[i].list = audioListToObj(e.list);
+              var blocks = albums.map((e) => e.match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""))[0]);
+              var load = blocks.map((e) => {
+                return VK.audioUtils.loadBlockById({
+                  id: e
+                });
               });
-              b.albumsBlockId = blockId[0];
-              resolve(b);
+              Promise.all(load).then((lists) => {
+                var blocks = lists.remap("name");
+                resolve(blocks);
+              }).catch(reject);
             } else {
               reject({
                 error: "search result is null"
@@ -184,12 +191,12 @@ var VK = {
           });
       });
     },
-    loadPlaylistsBlock: function (obj) {
+    loadBlockById: function (obj) {
       return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "load_playlists_block",
           al: 1,
-          block_id: obj.block_id,
+          block_id: obj.id,
           render_html: 1
         }, {
             multipart: true,
@@ -202,24 +209,22 @@ var VK = {
                 error: "Page isn't loaded"
               });
             } else {
-              var playlistIds = match.filter((e, i, array) => array.indexOf(e) === i).filter((e) => e.match(/\/([A-z0-9]+)\\/)).map((e) => e.match(/\/([A-z0-9]+)\\/)[1]);
-              if (!playlistIds.length) {
-                reject({
-                  error: "There's no playlists"
-                });
-              } else {
-                b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-                b.items = Object.entries(b.items).map((e, i) => {
+              var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+              if (json.type == "playlists") {
+                var hashes = b.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/g).unique().map((e) => e.match(/'(.+?)'/)[1]);
+                json.items = Object.entries(json.items).map((e, i) => {
                   e[1].playlist_id = e[0];
-                  e[1].access_hash = playlistIds[i];
+                  e[1].access_hash = hashes[i];
                   return e[1];
                 });
-                b.items.forEach((e) => {
-                  var p = e.photo.angles[0].m;
-                  e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
+                json.items.forEach((e) => {
+                  if (e.photo) {
+                    var p = e.photo.angles[0].m;
+                    e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
+                  }
                 });
-                resolve(b);
               }
+              resolve(json);
             }
           });
       });
@@ -339,7 +344,7 @@ var VK = {
     },
     addAudio: function (obj) {
       if (!obj) obj = {};
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           al: 1,
           act: "add",
@@ -352,8 +357,15 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            b = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
-            resolve(audioListToObj([b]));
+            var match = b.match(/<!json>(.+?)$/i);
+            if (match) {
+              b = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
+              resolve(audioListToObj([b]));
+            } else {
+              reject({
+                error: "json is undefined"
+              });
+            }
           });
       });
     },

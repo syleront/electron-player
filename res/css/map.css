@@ -335,6 +335,17 @@ a {
   background-color: var(--main-background-color);
 }
 
+.map-container-parent .header .reload-button {
+  position: relative;
+  margin-right: 12px;
+  margin-top: 11px;
+  float: right;
+}
+
+.map-container-parent .header .reload-button.animation-spin {
+  animation:spin 0.5s linear infinite;
+}
+
 .map-container-parent .header:empty {
   display: none;
 }

@@ -1,6 +1,10 @@
 /* jshint esversion: 6 */
 // тут страшно :\
 
+process.on("uncaughtException", (e) => {
+  console.log("uncaughtException " + e.stack);
+});
+
 emitter.on("auth", (VK, Settings) => {
   const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, Settings);
   Player.showTempContainer = showTempContainer;
@@ -97,17 +101,15 @@ emitter.on("auth", (VK, Settings) => {
 
   VK.audioUtils.getFullPlaylist().then((r) => {
     Player.data.mainPlaylist = r;
-    var node = document.getElementById("main_audio_list__mainPlaylist");
-    Player.data.currentAudioListNode = node;
-    Player.renderAudioList(r, node, 0, 50, () => {
-      node.loaded = true;
+    Player.data.currentAudioListNode = Player.controls.tabs.sub.main;
+    Player.renderAudioList(r, Player.controls.tabs.sub.main, 0, 50, () => {
+      Player.controls.tabs.sub.main.loaded = true;
     });
   }).then(() => {
     VK.audioUtils.getRecomendations().then((r) => {
       Player.data.recomsPlaylist = r;
-      var node = document.getElementById("recommendations_audio_list__recomsPlaylist");
-      Player.renderAudioList(r, node, 0, 50, () => {
-        node.loaded = true;
+      Player.renderAudioList(r, Player.controls.tabs.sub.recoms, 0, 50, () => {
+        Player.controls.tabs.sub.main.loaded = true;
       });
     });
   });
