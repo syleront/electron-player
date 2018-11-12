@@ -15,7 +15,7 @@ module.exports = function (VK, Settings) {
     data: {
       currentTab: "main_audio_list",
       currentTabPlaylistName: "mainPlaylist",
-      currentSubtabId: "main_audio_list__mainPlaylist",
+      //currentSubtabId: "main_audio_list__mainPlaylist",
       currentTracklist: []
     },
     controls: {
@@ -106,6 +106,10 @@ module.exports = function (VK, Settings) {
       this.getTrackNodesById(id).forEach((e) => {
         e.selectByClass("play-btn").innerHTML = (play ? "pause_circle_filled" : "play_circle_filled");
       });
+    },
+    searchInMainPlaylist: function (q) {
+      var reg = new RegExp(q, "i");
+      return Player.data.mainPlaylist.filter((e) => reg.test(e.title) || reg.test(e.artist));
     },
     isTrackInMainPlaylist: function (id, needIndex) {
       if (this.data.mainPlaylist) {
@@ -205,16 +209,22 @@ module.exports = function (VK, Settings) {
       }
     },
     renderAudioList: function (list, node, from, to) {
-      loadElement("html_plains/audio_element.html").then((audioNode) => {
+      if (typeof list !== "object") return;
+      return loadElement("html_plains/audio_element.html").then((audioNode) => {
         (typeof from == "number" ? list.slice(from, to) : list).forEach((e) => {
           var el = createAudioElement(e, audioNode);
           node.appendChild(el);
         });
-        if (typeof arguments[arguments.length - 1] == "function") arguments[arguments.length - 1]();
+        var lastArg = arguments[arguments.length - 1];
+        if (typeof lastArg == "function") {
+          return lastArg();
+        } else {
+          return true;
+        }
       });
     },
     renderPlaylists: function (list, node) {
-      loadElement("html_plains/playlist_element.html").then((pl) => {
+      return loadElement("html_plains/playlist_element.html").then((pl) => {
         list.forEach((playlist) => {
           var playlistNode = pl.cloneNode(true);
           if (playlist.photo && playlist.photo.url) playlist.picture = playlist.photo.url;
@@ -248,7 +258,12 @@ module.exports = function (VK, Settings) {
           });
           node.appendChild(playlistNode);
         });
-        if (typeof arguments[arguments.length - 1] == "function") arguments[arguments.length - 1]();
+        var lastArg = arguments[arguments.length - 1];
+        if (typeof lastArg == "function") {
+          return lastArg();
+        } else {
+          return true;
+        }
       });
     },
     reloadTabs: function () {
@@ -270,6 +285,7 @@ module.exports = function (VK, Settings) {
         return VK.audioUtils.getUserPlaylists().then((r) => {
           Player.controls.tabs.sub.playlists.innerHTML = "";
           Player.renderPlaylists(r, Player.controls.tabs.sub.playlists, () => {
+            Player.controls.tabs.sub.playlists.isLoaded = true;
             $(Player.controls.tabs.sub.playlists).animateCss("fadeIn veryfaster");
           });
         });
@@ -592,43 +608,58 @@ module.exports = function (VK, Settings) {
     Player.controls.search_box.value = query;
     Player.data.currentSearchQuery = query;
     Player.data.currentTabPlaylistName = "searchPlaylist";
-    return VK.audioUtils.getAllSearchBlocks({
-      q: query
-    }).then((lists) => {
-      var albums = lists.search_global_albums;
-      loadElement("html_plains/search_box_albums_header.html").then((el) => {
-        el.selectByClass("all-btn").addEventListener("click", () => {
-          Player.data.scrollStop = true;
-          loadElement("html_plains/back_button.html").then((btn) => {
-            $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
-              Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
-                btn.addEventListener("click", () => {
-                  $(albumsContainer).animateCss("fadeOut", () => {
-                    Player.data.scrollStop = false;
-                    albumsContainer.close();
+    return loadElement("html_plains/search_box_albums_header.html").then((header) => {
+      /* var list = Player.searchInMainPlaylist(query);
+      if (list.length) {
+        header.selectByClass("all-btn").remove();
+        header.selectByClass("title").innerHTML = "Мои аудиозаписи";
+        Player.controls.tabs.sub.search.appendChild(header);
+        Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50);
+      } */
+    }).then(() => {
+      return VK.audioUtils.getAllSearchBlocks({
+        q: query
+      }).then((lists) => {
+        var albums = lists.search_global_albums;
+        if (!albums) return false;
+        return loadElement("html_plains/search_box_albums_header.html").then((header) => {
+          //header.classList.add("border");
+          header.selectByClass("all-btn").addEventListener("click", () => {
+            Player.data.scrollStop = true;
+            return loadElement("html_plains/back_button.html").then((btn) => {
+              $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
+                Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
+                  btn.addEventListener("click", () => {
+                    $(albumsContainer).animateCss("fadeOut", () => {
+                      Player.data.scrollStop = false;
+                      albumsContainer.close();
+                    });
                   });
+                  albumsContainer.appendChild(btn);
+                  Player.renderPlaylists(albums.items, albumsContainer);
+                  $(albumsContainer).animateCss("fadeIn");
                 });
-                albumsContainer.appendChild(btn);
-                Player.renderPlaylists(albums.items, albumsContainer);
-                $(albumsContainer).animateCss("fadeIn");
               });
             });
           });
+          Player.controls.tabs.sub.search.appendChild(header);
+          //$(Player.controls.tabs.sub.search).animateCss("fadeIn");
+          Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
+          return true;
         });
-        Player.controls.tabs.sub.search.appendChild(el);
-        $(Player.controls.tabs.sub.search).animateCss("fadeIn");
-        Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
-      });
-    }).catch(() => { }).then(() => {
+      }).catch(() => { });
+    }).then((bool) => {
       return VK.audioUtils.search({
         q: query
       }).then((list) => {
-        loadElement("html_plains/search_box_albums_header.html").then((el) => {
-          el.selectByClass("title").innerHTML = "Все аудиозаписи";
-          el.selectByClass("all-btn").remove();
-          Player.controls.tabs.sub.search.appendChild(el);
-          Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
+        return loadElement("html_plains/search_box_albums_header.html").then((header) => {
+          if (bool) header.classList.add("border");
+          header.selectByClass("title").innerHTML = "Все аудиозаписи";
+          header.selectByClass("all-btn").remove();
+          Player.controls.tabs.sub.search.appendChild(header);
+          return Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
             Player.data.searchProcessing = false;
+            return true;
           });
         });
       });

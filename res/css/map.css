@@ -408,6 +408,10 @@ a {
   user-select: none;
 }
 
+.map-searchbox-album-header.border {
+  border-top: var(--track-info-border-color);
+}
+
 .map-searchbox-album-header .title {
   margin: auto;
   font-size: 18px;

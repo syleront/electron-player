@@ -9,6 +9,10 @@ emitter.on("auth", (VK, Settings) => {
   const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, Settings);
   Player.showTempContainer = showTempContainer;
 
+  VK.audioUtils.getRecomsBlocks({
+    offset: 0
+  }).then(console.log)
+
   if (Settings.cover_spin) {
     Player.controls.cover.classList.add("disk");
     Player.controls.cover.classList.add("animation-spin");
@@ -63,7 +67,7 @@ emitter.on("auth", (VK, Settings) => {
       var forTab = evt.target.getAttribute("for_tab");
       var playlist = evt.target.getAttribute("playlist");
       var tabNode = document.getElementById(forTab + "__" + playlist);
-      Player.data.currentSubtabId = forTab + "__" + playlist;
+      //Player.data.currentSubtabId = forTab + "__" + playlist;
       Player.data.currentTabPlaylistName = playlist;
       Array.from(document.getElementsByClassName("map-container")).forEach((e) => {
         if (e.temp) {
@@ -77,18 +81,19 @@ emitter.on("auth", (VK, Settings) => {
         }
       });
 
-      if (!tabNode.loaded) {
+      if (!tabNode.isLoaded) {
         if (playlist == "playlistsPlaylist") {
           VK.audioUtils.getUserPlaylists().then((r) => {
+            if (tabNode.isLoaded) return;
             Player.renderPlaylists(r, tabNode, () => {
               $(tabNode).animateCss("fadeIn veryfaster");
-              tabNode.loaded = true;
+              tabNode.isLoaded = true;
             });
           });
         } else if (playlist !== "searchPlaylist") {
           Player.renderAudioList(Player.data[playlist], tabNode, 0, 50, () => {
             $(tabNode).animateCss("fadeIn veryfaster");
-            tabNode.loaded = true;
+            tabNode.isLoaded = true;
           });
         } else {
           $(tabNode).animateCss("fadeIn veryfaster");
@@ -109,7 +114,7 @@ emitter.on("auth", (VK, Settings) => {
     VK.audioUtils.getRecomendations().then((r) => {
       Player.data.recomsPlaylist = r;
       Player.renderAudioList(r, Player.controls.tabs.sub.recoms, 0, 50, () => {
-        Player.controls.tabs.sub.main.loaded = true;
+        Player.controls.tabs.sub.recoms.loaded = true;
       });
     });
   });
@@ -135,7 +140,7 @@ emitter.on("auth", (VK, Settings) => {
         Player.data.scrollStop = true;
         var length = el.getElementsByClassName("map-audio-element").length;
         var playlistName = Player.data.currentTabPlaylistName;
-       if (playlistName == "recomsPlaylist") {
+        if (playlistName == "recomsPlaylist") {
           VK.audioUtils.getRecomendations({
             offset: length
           }).then((list) => {
@@ -148,24 +153,24 @@ emitter.on("auth", (VK, Settings) => {
               });
             }
           });
-       } else if (playlistName == "searchPlaylist") {
-         var query = Player.data.currentSearchQuery;
-         VK.audioUtils.search({
-           q: query
-         }).then((r) => {
-           Player.renderAudioList(r, el, length, length + 50, () => {
-             Player.data.scrollStop = false;
-           });
-         });
-       } else {
-         if (length >= Player.data.mainPlaylist.length) {
-           Player.data.scrollStop = false;
-         } else {
-           Player.renderAudioList(Player.data[playlistName], el, length, length + 50, () => {
-             Player.data.scrollStop = false;
-           });
-         }
-       }
+        } else if (playlistName == "searchPlaylist") {
+          var query = Player.data.currentSearchQuery;
+          VK.audioUtils.search({
+            q: query
+          }).then((r) => {
+            Player.renderAudioList(r, el, length, length + 50, () => {
+              Player.data.scrollStop = false;
+            });
+          });
+        } else {
+          if (length >= Player.data.mainPlaylist.length) {
+            Player.data.scrollStop = false;
+          } else {
+            Player.renderAudioList(Player.data[playlistName], el, length, length + 50, () => {
+              Player.data.scrollStop = false;
+            });
+          }
+        }
       } else if (el.scrollTop < 400 && Player.data.currentTab !== "playlists_audio_list") {
         Array.from(el.getElementsByClassName("map-audio-element")).slice(50).forEach((e) => {
           e.remove();

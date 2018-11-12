@@ -150,9 +150,41 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            var list = audioListToObj(b.list);
+            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            var list = audioListToObj(json.list);
             resolve(list);
+          });
+      });
+    },
+    getRecomsBlocks: function (obj) {
+      return new Promise((resolve, reject) => {
+        needle.post("https://vk.com/al_audio.php", {
+          act: "recoms_blocks",
+          al: 1,
+          offset: obj.offset || 0,
+        }, {
+            multipart: true,
+            cookies: VK.cookies
+          }, (e, r, b) => {
+            if (e) throw e;
+            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            var sections = json.join("").match(/<a(.+?)href="\/audios[0-9]+\?section=recoms_block(.+?)>/g);
+            if (sections) {
+              var blocks = sections.map((e) => e.match(/section=recoms_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=recoms_block&type=", ""))[0]);
+              var load = blocks.map((e) => {
+                return VK.audioUtils.loadBlockById({
+                  id: e
+                });
+              });
+              Promise.all(load).then((lists) => {
+                var blocks = lists.remap("name");
+                resolve(blocks);
+              }).catch(reject);
+            } else {
+              reject({
+                error: "result is null"
+              });
+            }
           });
       });
     },
@@ -171,7 +203,7 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var albums = b.match(/<a(.+?)audio_page_block__show_all_link/gm);
+            var albums = b.match(/<a(.+?)href="\/audios[0-9]+\?section=search_block(.+?)>/gm);
             if (albums) {
               var blocks = albums.map((e) => e.match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""))[0]);
               var load = blocks.map((e) => {
@@ -211,7 +243,7 @@ var VK = {
             } else {
               var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
               if (json.type == "playlists") {
-                var hashes = b.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/g).unique().map((e) => e.match(/'(.+?)'/)[1]);
+                var hashes = b.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/g).unique().map((e) => e.match(/'(.*?)'/)[1]);
                 json.items = Object.entries(json.items).map((e, i) => {
                   e[1].playlist_id = e[0];
                   e[1].access_hash = hashes[i];
@@ -246,12 +278,12 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
             if (dontTransformList) {
-              resolve(b);
+              resolve(json);
             } else {
-              var list = audioListToObj(b.list);
-              resolve([list, b]);
+              var list = audioListToObj(json.list);
+              resolve([list, json]);
             }
           });
       });
@@ -317,8 +349,8 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            resolve(audioListToObj(b));
+            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            resolve(audioListToObj(json));
           });
       });
     },
@@ -337,8 +369,8 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            b = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            resolve(audioListToObj(b.list));
+            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            resolve(audioListToObj(json.list));
           });
       });
     },
@@ -359,8 +391,8 @@ var VK = {
             if (e) throw e;
             var match = b.match(/<!json>(.+?)$/i);
             if (match) {
-              b = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
-              resolve(audioListToObj([b]));
+              var json = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
+              resolve(audioListToObj([json]));
             } else {
               reject({
                 error: "json is undefined"
