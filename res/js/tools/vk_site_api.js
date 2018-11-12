@@ -261,6 +261,31 @@ var VK = {
           });
       });
     },
+    getWallAudio: function (obj) {
+      return new Promise((resolve, reject) => {
+        needle.post("https://vk.com/al_audio.php", {
+          access_hash: "",
+          act: "load_section",
+          al: 1,
+          claim: 0,
+          offset: 1,
+          owner_id: obj.owner_id,
+          playlist_id: 3424665,
+          post_id: obj.post_id || "",
+          track_type: "default",
+          type: "wall",
+          wall_query: "",
+          wall_type: "own"
+        }, {
+            multipart: true,
+            cookies: VK.cookies
+          }, (e, r, b) => {
+            if (e) throw e;
+            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            resolve(json);
+          });
+      });
+    },
     getPlaylist: function (obj, dontTransformList) {
       return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
@@ -476,6 +501,17 @@ var VK = {
             if (e) throw e;
             resolve(b);
           });
+      });
+    },
+    getExportsHash: function () {
+      return new Promise((resolve) => {
+        needle.get("https://vk.com/al_audio.php", {
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) throw e;
+          resolve(b.match(/statusExportHash:\s'(.+?)'/)[1]);
+        });
       });
     }
   }

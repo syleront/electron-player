@@ -9,9 +9,14 @@ emitter.on("auth", (VK, Settings) => {
   const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, Settings);
   Player.showTempContainer = showTempContainer;
 
-  VK.audioUtils.getRecomsBlocks({
+  /* VK.audioUtils.getWallAudio({
+    owner_id: -32742525,
+    post_id: 227412
+  }).then(console.log) */
+
+  /* VK.audioUtils.getRecomsBlocks({
     offset: 0
-  }).then(console.log)
+  }).then(console.log) */
 
   if (Settings.cover_spin) {
     Player.controls.cover.classList.add("disk");

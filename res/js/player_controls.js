@@ -209,7 +209,7 @@ module.exports = function (VK, Settings) {
       }
     },
     renderAudioList: function (list, node, from, to) {
-      if (typeof list !== "object") return;
+      if (!list) list = [];
       return loadElement("html_plains/audio_element.html").then((audioNode) => {
         (typeof from == "number" ? list.slice(from, to) : list).forEach((e) => {
           var el = createAudioElement(e, audioNode);
