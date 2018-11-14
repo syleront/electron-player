@@ -184,8 +184,11 @@ a {
   text-overflow: ellipsis;
 }
 
-.map-track-info .artist span:hover {
+.map-track-info .artist span {
   cursor: pointer;
+}
+
+.map-track-info .artist span:hover {
   text-decoration: underline;
 }
 

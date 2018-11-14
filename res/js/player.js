@@ -1,4 +1,3 @@
-/* jshint esversion: 6 */
 // тут страшно :\
 
 process.on("uncaughtException", (e) => {
@@ -8,15 +7,6 @@ process.on("uncaughtException", (e) => {
 emitter.on("auth", (VK, Settings) => {
   const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, Settings);
   Player.showTempContainer = showTempContainer;
-
-  /* VK.audioUtils.getWallAudio({
-    owner_id: -32742525,
-    post_id: 227412
-  }).then(console.log) */
-
-  /* VK.audioUtils.getRecomsBlocks({
-    offset: 0
-  }).then(console.log) */
 
   if (Settings.cover_spin) {
     Player.controls.cover.classList.add("disk");
@@ -48,7 +38,6 @@ emitter.on("auth", (VK, Settings) => {
     var div = createContainerDiv(forTab + "__" + playlist);
     e.container_id = div.id;
     main_container.appendChild(div);
-    //Player.controls.tabs.sub[div.id] = div;
 
     if (e.getAttribute("alias")) {
       Player.controls.tabs.sub[e.getAttribute("alias")] = div;
@@ -65,14 +54,12 @@ emitter.on("auth", (VK, Settings) => {
     }
 
     e.addEventListener("click", (evt) => {
-      //if (Player.data.rendering) return; //evt.target.classList.contains("selected")
       subtabs.filter((e) => e.classList.contains("selected") && e.getAttribute("for_tab") == Player.data.currentTab)[0].classList.remove("selected");
       evt.target.classList.add("selected");
 
       var forTab = evt.target.getAttribute("for_tab");
       var playlist = evt.target.getAttribute("playlist");
       var tabNode = document.getElementById(forTab + "__" + playlist);
-      //Player.data.currentSubtabId = forTab + "__" + playlist;
       Player.data.currentTabPlaylistName = playlist;
       Array.from(document.getElementsByClassName("map-container")).forEach((e) => {
         if (e.temp) {
@@ -223,13 +210,4 @@ emitter.on("auth", (VK, Settings) => {
     if (id) div.id = id;
     return div;
   }
-
-  /* function loadElement(p) {
-    return new Promise((resolve, reject) => {
-      fs.readFile(path.join(__dirname, p), (e, d) => {
-        if (e) return reject(e);
-        else resolve(createElementFromHTML(d));
-      });
-    });
-  } */
 });

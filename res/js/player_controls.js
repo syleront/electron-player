@@ -1,5 +1,3 @@
-/* jshint esversion: 6 */
-
 process.on("uncaughtException", (e) => {
   console.log("uncaughtException " + e.stack);
 });
@@ -15,7 +13,6 @@ module.exports = function (VK, Settings) {
     data: {
       currentTab: "main_audio_list",
       currentTabPlaylistName: "mainPlaylist",
-      //currentSubtabId: "main_audio_list__mainPlaylist",
       currentTracklist: []
     },
     controls: {
@@ -375,10 +372,13 @@ module.exports = function (VK, Settings) {
     if (Settings.broadcast == true) {
       Settings.broadcast = false;
       Player.controls.broadcast.classList.remove("active");
+      VK.audioUtils.setStatus({
+        audio: Player.data.currentTrackId
+      }, true);
     } else {
       Settings.broadcast = true;
       Player.controls.broadcast.classList.add("active");
-      VK.api("audio.setBroadcast", {
+      VK.audioUtils.setStatus({
         audio: Player.data.currentTrackId
       });
     }
@@ -432,7 +432,7 @@ module.exports = function (VK, Settings) {
 
   Audio.addEventListener("timeupdate", () => {
     if (Player.data.rangeInputBreak) return;
-    var value = Math.ceil(Audio.currentTime);
+    var value = Math.floor(Audio.currentTime);
     Player.controls.range.value = value;
     Player.controls.time.innerText = secondsToString(value);
     changeInputColor(Player.controls.range);
@@ -512,7 +512,7 @@ module.exports = function (VK, Settings) {
       }
     });
     if (Settings.broadcast) {
-      VK.api("audio.setBroadcast", {
+      VK.audioUtils.setStatus({
         audio: trackInfo.owner_id + "_" + trackInfo.id
       });
     }

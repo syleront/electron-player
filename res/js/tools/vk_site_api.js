@@ -1,5 +1,3 @@
-/* jshint esversion: 6 */
-
 var needle = require("needle");
 var audioUnmaskSource = require("./audioUnmaskSource.js");
 var prototypes = require("./prototypes");
@@ -126,7 +124,10 @@ var VK = {
         VK.api("users.get", {}).then((r) => {
           VK.user_id = r[0].id;
           VK.cookies = options.cookies;
-          resolve(VK);
+          VK.audioUtils.getExportsHash().then((hash) => {
+            VK.exports_hash = hash;
+            resolve(VK);
+          });
         });
       });
     });
@@ -486,13 +487,16 @@ var VK = {
         });
       });
     },
-    setStatus: function (obj) {
+    setStatus: function (obj, off) {
       if (!obj) obj = {};
       return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           al: 1,
-          act: "audio_status",
-          full_id: obj.owner_id + "_" + obj.id,
+          exp: off ? 0 : 1,
+          act: "toggle_status",
+          hash: VK.exports_hash,
+          oid: off ? 0 : VK.user_id,
+          id: obj.audio || "",
           top: 0
         }, {
             multipart: true,

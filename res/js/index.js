@@ -1,5 +1,3 @@
-/* jshint esversion: 6 */
-
 const vk = require("./res/js/tools/vk_site_api.js"),
   fs = require("fs"),
   path = require("path"),
