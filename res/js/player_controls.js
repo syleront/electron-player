@@ -21,9 +21,10 @@ module.exports = function (VK, Settings) {
       next: document.getElementById("next_button"),
       range: document.getElementById("player_track_range"),
       volume: document.getElementById("player_volume_range"),
+      volume_parent: document.getElementById("player_volume_parent"),
       artist: document.getElementById("player_artist"),
       title: document.getElementById("player_title"),
-      time: document.getElementById("player_time"),
+      time: document.getElementById("player_time"), 
       full_time: document.getElementById("player_full_time"),
       cover: document.getElementById("track_cover"),
       search_box: document.getElementById("search_box"),
@@ -67,10 +68,10 @@ module.exports = function (VK, Settings) {
       return document.getElementById(id).getElementsByClassName("map-audio-element");
     },
     getCurrentTabAudioNodes: function () {
-      return this.getVisibleContainer().getElementsByClassName("map-audio-element");
+      return Array.from(this.getVisibleContainer().getElementsByClassName("map-audio-element"));
     },
     getCurrentTabAudioNode: function (id) {
-      return Array.from(this.getCurrentTabAudioNodes()).filter((e) => e.trackInfo.attachment_id == id)[0];
+      return this.getCurrentTabAudioNodes().filter((e) => e.trackInfo.attachment_id == id)[0];
     },
     getListFromAudioNodes: function (list) {
       return Array.from(list).map((e) => e.trackInfo);
@@ -321,6 +322,15 @@ module.exports = function (VK, Settings) {
 
   Player.controls.volume.addEventListener("change", () => {
     Audio.volume = Player.controls.volume.value / 100;
+    changeInputColor(Player.controls.volume);
+    Settings.volume = Audio.volume;
+    Settings.save();
+  });
+
+  Player.controls.volume_parent.addEventListener("wheel", (evt) => {
+    var newValue = Audio.volume + (evt.deltaY < 0 ? 0.05 : -0.05);
+    Audio.volume = (newValue < 0 ? 0 : (newValue > 1 ? 1 : newValue)).toFixed(2);
+    Player.controls.volume.value = Audio.volume * 100;
     changeInputColor(Player.controls.volume);
     Settings.volume = Audio.volume;
     Settings.save();

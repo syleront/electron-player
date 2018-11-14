@@ -130,7 +130,8 @@ emitter.on("auth", (VK, Settings) => {
     if (!Player.data.scrollStop) {
       if (el.scrollTop >= (el.scrollHeight - el.offsetHeight) - 50) {
         Player.data.scrollStop = true;
-        var length = el.getElementsByClassName("map-audio-element").length;
+        var container = Player.getVisibleContainer();
+        var length = Player.getCurrentTabAudioNodes().length;
         var playlistName = Player.data.currentTabPlaylistName;
         if (playlistName == "recomsPlaylist") {
           VK.audioUtils.getRecomendations({
@@ -145,7 +146,7 @@ emitter.on("auth", (VK, Settings) => {
               });
             }
           });
-        } else if (playlistName == "searchPlaylist") {
+        } else if (playlistName == "searchPlaylist" && !container.temp) {
           var query = Player.data.currentSearchQuery;
           VK.audioUtils.search({
             q: query

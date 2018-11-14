@@ -15,7 +15,8 @@ function createWindow() {
     height: 700,
     webPreferences: {
       experimentalFeatures: true
-    }
+    },
+    icon: path.join(__dirname, "res/assets/icons/32x32.png")
   });
   //mainWindow.webContents.session.setProxy({ proxyRules: "socks5://213.32.72.118:1080" }, function () {
     mainWindow.loadURL(`file://${__dirname}/index.html`);
