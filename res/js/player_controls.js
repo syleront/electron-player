@@ -24,7 +24,7 @@ module.exports = function (VK, Settings) {
       volume_parent: document.getElementById("player_volume_parent"),
       artist: document.getElementById("player_artist"),
       title: document.getElementById("player_title"),
-      time: document.getElementById("player_time"), 
+      time: document.getElementById("player_time"),
       full_time: document.getElementById("player_full_time"),
       cover: document.getElementById("track_cover"),
       search_box: document.getElementById("search_box"),
@@ -62,7 +62,8 @@ module.exports = function (VK, Settings) {
       });
     },
     getVisibleContainer: function () {
-      return Array.from(document.getElementsByClassName("map-container")).filter((e) => e.style.display !== "none")[0];
+      var divId = this.data.currentTab + "__" + this.data.currentTabPlaylistName;
+      return Array.from(document.getElementById(divId).getElementsByClassName("map-subtab-container")).filter((e) => e.style.display !== "none")[0];
     },
     getTabAudioNodesById: function (id) {
       return document.getElementById(id).getElementsByClassName("map-audio-element");
@@ -232,7 +233,7 @@ module.exports = function (VK, Settings) {
           playlistNode.addEventListener("click", () => {
             $(node).animateCss("fadeOut", () => {
               node.style.display = "none";
-              Player.showTempContainer(node, null, (container) => {
+              Player.showTempContainer(node, (container) => {
                 VK.audioUtils.getFullPlaylist({
                   access_hash: playlist.access_hash || "",
                   owner_id: playlist.owner_id,
@@ -262,6 +263,25 @@ module.exports = function (VK, Settings) {
         } else {
           return true;
         }
+      });
+    },
+    renderUsers: function (list, node) {
+      return loadElement("html_plains/people_element.html").then((nodePlain) => {
+        list.forEach((user) => {
+          var userNode = nodePlain.cloneNode(true);
+          userNode.selectByClass("title").innerHTML = user.first_name + "<br>" + user.last_name;
+          userNode.selectByClass("photo").src = user.photo_100;
+          userNode.addEventListener("click", () => {
+            this.showTempContainer(Player.controls.tabs.sub.people, (container) => {
+              VK.audioUtils.getFullPlaylist({
+                owner_id: user.id
+              }).then((list) => {
+                this.renderAudioList(list, container);
+              });
+            });
+          });
+          node.appendChild(userNode);
+        });
       });
     },
     reloadTabs: function () {
@@ -578,21 +598,26 @@ module.exports = function (VK, Settings) {
 
   function createAudioElement(track, audioNode, isAdded) {
     var node = audioNode.cloneNode(true);
-    track.track_title = track.artist + " - " + track.title;
     node.trackInfo = track;
-    node.selectByClass("time").innerHTML = secondsToString(node.trackInfo.duration);
-    if (Player.isTrackInMainPlaylist(track.attachment_id) || isAdded) {
-      node.selectByClass("add-btn").innerHTML = "clear";
-    }
+    node.selectByClass("time").innerHTML = secondsToString(track.duration);
     node.selectByClass("add-btn").addEventListener("click", addTrackHandler);
-    node.selectByClass("title-inner").innerHTML = node.trackInfo.track_title;
+    node.selectByClass("artist").innerHTML = track.artist;
+    node.selectByClass("artist").addEventListener("click", () => {
+      searchHandler(track.artist, true);
+    });
+    node.selectByClass("title").innerHTML = track.title;
     node.addEventListener("click", (evt) => {
-      if (window.getSelection().isCollapsed && !evt.toElement.classList.contains("add-btn")) {
+      var ignore = ["add-btn", "artist"];
+      var filtered = ignore.every((e) => !evt.toElement.classList.contains(e));
+      if (window.getSelection().isCollapsed && filtered) {
         Player.playPause(track.attachment_id);
       }
     });
     if (node.trackInfo.attachment_id == Player.data.currentTrackId && !Audio.paused) {
       node.selectByClass("play-btn").innerHTML = "pause_circle_filled";
+    }
+    if (Player.isTrackInMainPlaylist(track.attachment_id) || isAdded) {
+      node.selectByClass("add-btn").innerHTML = "clear";
     }
     return node;
   }
@@ -638,7 +663,7 @@ module.exports = function (VK, Settings) {
             Player.data.scrollStop = true;
             return loadElement("html_plains/back_button.html").then((btn) => {
               $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
-                Player.showTempContainer(Player.controls.tabs.sub.search, null, (albumsContainer) => {
+                Player.showTempContainer(Player.controls.tabs.sub.search, (albumsContainer) => {
                   btn.addEventListener("click", () => {
                     $(albumsContainer).animateCss("fadeOut", () => {
                       Player.data.scrollStop = false;
@@ -752,5 +777,6 @@ module.exports = function (VK, Settings) {
     currentWindow.setThumbarButtons(buttonsList);
   }
 
+  global.player = Player;
   return Player;
 };

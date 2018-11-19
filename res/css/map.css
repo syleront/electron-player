@@ -392,10 +392,20 @@ a {
   background-color: rgba(0, 0, 0, 0.15);
 }
 
-.map-container {
+.map-tab-div {
+  min-height: 0;
+  height: 100%;
+}
+
+.map-subtab-div {
+  display: flex;
+  height: 100%;
+}
+
+.map-subtab-container {
+  flex: 1 1 auto;
   height: 100%;
   overflow-y: auto;
-  flex: 1 1 auto;
   animation-duration: 0.15s;
 }
 
@@ -539,13 +549,16 @@ input.map-login-form:focus {
   margin-right: 15px;
 }
 
-.map-audio-element .title {
+.map-audio-element .title-container {
   overflow: hidden;
   white-space:nowrap;
   text-overflow: ellipsis;
   width: 100%;
-  display:inline-block;
   margin-left: 15px;
+}
+
+.map-audio-element .title-container .artist:hover {
+  text-decoration: underline;
 }
 
 .map-audio-element .title-inner {
@@ -575,6 +588,35 @@ input.map-login-form:focus {
 
 .map-audio-element:hover > .add-btn{
   color: black;
+}
+
+.map-people-container {
+  text-align: center;
+}
+
+.map-people-element {
+  user-select: none;
+  padding: 20px;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.map-people-element .title {
+  text-align: center;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 75px;
+  font-size: 14px;
+  text-overflow: ellipsis;
+}
+
+.map-people-element .photo {
+  -webkit-user-drag: none;
+  width: 75px;
+  height: 75px;
+  border-radius: 15%;
+  cursor: pointer;
 }
 
 .map-playlist-element {

@@ -263,7 +263,7 @@ var VK = {
       });
     },
     getWallAudio: function (obj) {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         needle.post("https://vk.com/al_audio.php", {
           access_hash: "",
           act: "load_section",
