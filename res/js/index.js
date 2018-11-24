@@ -2,7 +2,10 @@ const vk = require("./res/js/tools/vk_site_api.js"),
   fs = require("fs"),
   path = require("path"),
   user_settings = tryRequireSettings(),
-  EventEmitter = require("events");
+  EventEmitter = require("events"),
+  INIT_INFO = {
+    PATH: __dirname
+  };
 
 let emitter = new EventEmitter();
 
@@ -27,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
       var cookies = JSON.parse(d);
       vk.load(cookies).then((API) => {
         loadPage("player").then(() => {
-          emitter.emit("auth", API, user_settings);
+          emitter.emit("auth", API, INIT_INFO, user_settings);
         });
       }).catch((e) => {
         if (e.code == 3) {
@@ -122,6 +125,11 @@ function renderLogin() {
               }).catch((e) => {
                 throw e;
               });
+            });
+            auth_check_form.addEventListener("keydown", (evt) => {
+              if (evt.keyCode == 13) {
+                btn.click();
+              }
             });
           } else {
             if (tmp.incorrect) {

@@ -396,8 +396,24 @@ var VK = {
           }, (e, r, b) => {
             if (e) throw e;
             var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            resolve(audioListToObj(json.list));
+            json.list = audioListToObj(json.list);
+            resolve(json);
           });
+      });
+    },
+    getAllRecomendations: function () {
+      return new Promise((resolve) => {
+        var list = [];
+        (function get(offset) {
+          VK.audioUtils.getRecomendations({ offset }).then((res) => {
+            list = list.concat(res.list);
+            if (res.list.length) {
+              get(res.nextOffset);
+            } else {
+              resolve(list);
+            }
+          });
+        })(0);
       });
     },
     addAudio: function (obj) {

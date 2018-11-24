@@ -4,8 +4,8 @@ process.on("uncaughtException", (e) => {
   console.log("uncaughtException " + e.stack);
 });
 
-emitter.on("auth", (VK, Settings) => {
-  const Player = require(path.join(__dirname, "res/js/player_controls.js"))(VK, Settings);
+emitter.on("auth", (VK, INIT_INFO, Settings) => {
+  const Player = require(path.join(INIT_INFO.PATH, "res/js/player_controls.js"))(VK, INIT_INFO, Settings);
   Player.showTempContainer = showTempContainer;
 
   if (Settings.cover_spin) {
@@ -35,7 +35,6 @@ emitter.on("auth", (VK, Settings) => {
   });
 
   var subtabs = Array.from(document.getElementsByClassName("subtab-element"));
-
   subtabs.forEach((subtab) => {
     var alias = subtab.getAttribute("alias");
     var for_tab = subtab.getAttribute("for_tab");
@@ -51,9 +50,8 @@ emitter.on("auth", (VK, Settings) => {
           subtabDiv.classList.add(className);
         });
       }
-      var subtabContainer = createSubtabContainer(subtabDiv);
-      subtabDiv.mainChildContainer = subtabContainer;
-      if (alias) Player.controls.tabs.sub[alias] = subtabContainer;
+      var mainSubtabContainer = createSubtabContainer(subtabDiv);
+      if (alias) Player.controls.tabs.sub[alias] = mainSubtabContainer;
 
       if (for_tab == Player.data.currentTab) {
         subtab.style.display = "";
@@ -61,107 +59,73 @@ emitter.on("auth", (VK, Settings) => {
         subtab.style.display = "none";
       }
     }
-
     subtab.addEventListener("click", changeSubtab);
   });
 
-  VK.audioUtils.getFullPlaylist().then((r) => {
-    Player.data.mainPlaylist = r;
-    Player.data.currentAudioListNode = Player.controls.tabs.sub.main;
-    Player.renderAudioList(r, Player.controls.tabs.sub.main, 0, 50, () => {
-      Player.controls.tabs.sub.main.loaded = true;
-    });
-  }).then(() => {
-    return VK.audioUtils.getRecomendations().then((r) => {
-      Player.data.recomsPlaylist = r;
-      Player.renderAudioList(r, Player.controls.tabs.sub.recoms, 0, 50, () => {
-        Player.controls.tabs.sub.recoms.loaded = true;
-      });
-    });
-  }).then(() => {
-    VK.api("friends.get", {
-      fields: "photo_100",
-      order: "hints"
-    }).then((list) => {
-      Player.renderUsers(list.items, Player.controls.tabs.sub.people);
-    });
-  });
+  Player.reloadTabs();
+  changeTab();
 
   function onScrollHandler(evt) {
-    var el = evt.target;
-    //console.log(el.scrollTop, el.scrollHeight, el.offsetHeight, (el.scrollHeight - el.offsetHeight) - 50, Player.data.scrollStop)
-    if (!Player.data.scrollStop) {
-      if (el.scrollTop >= (el.scrollHeight - el.offsetHeight) - 50) {
+    var node = evt.target;
+    if (isScrollOnTheBottom(node, 50)) {
+      var data = node.getContainerData();
+      if (data) {
         Player.data.scrollStop = true;
-        var container = Player.getVisibleContainer();
-        var length = Player.getCurrentTabAudioNodes().length;
-        var playlistName = Player.data.currentTabPlaylistName;
-        if (playlistName == "recomsPlaylist") {
-          VK.audioUtils.getRecomendations({
-            offset: length
-          }).then((list) => {
-            if (!list.length) {
-              Player.data.scrollStop = false;
-            } else {
-              Player.data.recomsPlaylist = Player.data.recomsPlaylist.concat(list);
-              Player.renderAudioList(list, el, () => {
-                Player.data.scrollStop = false;
-              });
-            }
-          });
-        } else if (playlistName == "searchPlaylist" && !container.temp) {
-          var query = Player.data.currentSearchQuery;
-          VK.audioUtils.search({
-            q: query
-          }).then((r) => {
-            Player.renderAudioList(r, el, length, length + 50, () => {
+        if (data.type == "audios") {
+          var length = Player.getCurrentTabAudioNodes().length;
+          if (length < data.list.length) {
+            Player.renderAudioList(data.list, node, length, length + 50, () => {
               Player.data.scrollStop = false;
             });
-          });
-        } else {
-          if (length >= Player.data.mainPlaylist.length) {
-            Player.data.scrollStop = false;
           } else {
-            Player.renderAudioList(Player.data[playlistName], el, length, length + 50, () => {
-              Player.data.scrollStop = false;
-            });
+            Player.data.scrollStop = false;
           }
         }
-      } else if (el.scrollTop < 400 && Player.data.currentTabPlaylistName !== "playlistsPlaylist") {
-        Array.from(el.getElementsByClassName("map-audio-element")).slice(50).forEach((e) => {
-          e.remove();
-        });
       }
+    } else if (isScrollOnTheTop(node, 400)) {
+      Array.from(node.childNodes).slice(75).forEach((e) => {
+        e.remove();
+      });
     }
+  }
+
+  function isScrollOnTheBottom(el, offset) {
+    return el.scrollTop >= (el.scrollHeight - el.offsetHeight) - (offset || 0);
+  }
+
+  function isScrollOnTheTop(el, offset) {
+    return el.scrollTop <= (offset || 0);
   }
 
   function changeTab(evt) {
     Player.controls.tabs[Player.data.currentTab].classList.remove("tab-element-selected");
     Player.controls.tabs[Player.data.currentTab].classList.add("map-transition");
 
-    Player.data.currentTab = evt.target.getAttribute("tab");
+    Player.data.currentTab = evt ? evt.target.getAttribute("tab") : Player.data.currentTab;
     Player.controls.tabs[Player.data.currentTab].classList.add("tab-element-selected");
     Player.controls.tabs[Player.data.currentTab].classList.remove("map-transition");
 
     subtabs.forEach((subtab) => {
       var for_tab = subtab.getAttribute("for_tab");
-      var tab_container = document.getElementById(for_tab);
+      var subtab_container = document.getElementById(for_tab);
       if (for_tab == Player.data.currentTab) {
         subtab.style.display = "";
-        tab_container.style.display = "";
+        subtab_container.style.display = "";
         if (subtab.classList.contains("selected")) {
           subtab.click();
         }
       } else {
         subtab.style.display = "none";
-        tab_container.style.display = "none";
+        subtab_container.style.display = "none";
       }
     });
 
     if (subtabs.filter((e) => e.getAttribute("for_tab") == Player.data.currentTab).every((e) => e.style.display == "none" || e.classList.contains("hidden"))) {
       container_header.style.display = "none";
+      Player.getCurrentTabContainerNode().style.marginTop = "";
     } else {
       container_header.style.display = "";
+      Player.getCurrentTabContainerNode().style.marginTop = container_header.offsetHeight + "px";
     }
   }
 
@@ -187,35 +151,24 @@ emitter.on("auth", (VK, Settings) => {
       }
     });
 
-    if (!tabMainContainer.isLoaded) {
-      if (playlist == "playlistsPlaylist") {
-        VK.audioUtils.getUserPlaylists().then((r) => {
-          if (tabMainContainer.isLoaded) return;
-          Player.renderPlaylists(r, tabMainContainer, () => {
-            $(tabMainContainer).animateCss("fadeIn veryfaster");
-            tabMainContainer.isLoaded = true;
-          });
-        });
-      } else if (playlist !== "searchPlaylist") {
-        Player.renderAudioList(Player.data[playlist], tabMainContainer, 0, 50, () => {
-          $(tabMainContainer).animateCss("fadeIn veryfaster");
-          tabMainContainer.isLoaded = true;
-        });
-      } else {
-        $(tabMainContainer).animateCss("fadeIn veryfaster");
-      }
-    } else {
-      $(tabMainContainer).animateCss("fadeIn veryfaster");
-    }
+    $(tabMainContainer).animateCss("fadeIn veryfaster");
   }
 
   function showTempContainer(nodeToHide, _cb) {
     nodeToHide.style.display = "none";
     var div = createSubtabContainer((nodeToHide.parentNode || null));
     div.temp = true;
-    div.close = function () {
-      div.remove();
-      nodeToHide.style.display = "";
+    div.close = function (fade) {
+      if (fade) {
+        $(div).animateCss("fadeOut", () => {
+          div.remove();
+          nodeToHide.style.display = "";
+          $(nodeToHide).animateCss("fadeIn veryfaster");
+        });
+      } else {
+        div.remove();
+        nodeToHide.style.display = "";
+      }
     };
     if (_cb) _cb(div);
   }
@@ -239,8 +192,22 @@ emitter.on("auth", (VK, Settings) => {
     var div = document.createElement("div");
     div.classList.add("map-subtab-container");
     div.onscroll = onScrollHandler;
+    div.removeTempNodes = function (fade) {
+      parentDiv.childNodes.forEach((node) => {
+        if (node.close) node.close(fade);
+      });
+    };
+    div.setContainerData = function (type, list) {
+      div.container_data = { type, list };
+    };
+    div.getContainerData = function () {
+      return div.container_data || null;
+    };
     if (id) div.id = id;
-    if (parentDiv) parentDiv.appendChild(div);
+    if (parentDiv) {
+      parentDiv.appendChild(div);
+      parentDiv.mainChildContainer = div;
+    }
     return div;
   }
 });
