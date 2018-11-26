@@ -180,7 +180,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
     renderAudioList: function (list, node, from, to) {
       if (!document.body.contains(node)) return;
       if (!list) list = [];
-      return loadElement("res/js/html_plains/audio_element.html").then((audioNode) => {
+      return loadElement("audio_element").then((audioNode) => {
         (typeof from == "number" ? list.slice(from, to) : list).forEach((e) => {
           var el = createAudioElement(e, audioNode);
           node.appendChild(el);
@@ -195,7 +195,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
     },
     renderPlaylists: function (list, node) {
       if (!document.body.contains(node)) return;
-      return loadElement("res/js/html_plains/playlist_element.html").then((pl) => {
+      return loadElement("playlist_element").then((pl) => {
         list.forEach((playlist) => {
           var playlistNode = pl.cloneNode(true);
           if (playlist.photo && playlist.photo.url) playlist.picture = playlist.photo.url;
@@ -210,11 +210,9 @@ module.exports = function (VK, INIT_INFO, Settings) {
                   owner_id: playlist.owner_id,
                   playlist_id: playlist.id || playlist.playlist_id
                 }).then((r) => {
-                  loadElement("res/js/html_plains/back_button.html").then((btn) => {
-                    btn.addEventListener("click", () => container.close(true));
-                    container.setContainerData("audios", r);
+                  container.setContainerData("audios", r);
+                  this.renderBackButton(container, () => container.close(true)).then(() => {
                     this.renderAudioList(r, container, 0, 50, () => {
-                      container.insertAdjacentElement("afterbegin", btn);
                       $(container).animateCss("fadeIn");
                     });
                   });
@@ -232,9 +230,25 @@ module.exports = function (VK, INIT_INFO, Settings) {
         }
       });
     },
+    renderListHeader: function (node, head_text, border, btn_cb) {
+      return loadElement("list_header").then((header) => {
+        if (border) header.classList.add("border");
+        if (head_text) header.selectByClass("title").innerHTML = head_text;
+        if (!btn_cb) header.selectByClass("all-btn").remove();
+        else header.selectByClass("all-btn").addEventListener("click", btn_cb);
+        node.appendChild(header);
+        return header;
+      });
+    },
+    renderBackButton: function (node, _cb) {
+      return loadElement("back_button").then((button) => {
+        button.addEventListener("click", _cb);
+        node.appendChild(button);
+      });
+    },
     renderUsers: function (list, node) {
       if (!document.body.contains(node)) return;
-      return loadElement("res/js/html_plains/people_element.html").then((nodePlain) => {
+      return loadElement("people_element").then((nodePlain) => {
         list.forEach((user) => {
           var userNode = nodePlain.cloneNode(true);
           userNode.selectByClass("title").innerHTML = user.first_name + "<br>" + user.last_name;
@@ -242,25 +256,39 @@ module.exports = function (VK, INIT_INFO, Settings) {
           if (user.can_see_audio) {
             userNode.addEventListener("click", () => {
               $(node).animateCss("fadeOut", () => {
-                this.showTempContainer(Player.controls.tabs.sub.people, async (container) => {
-                  var button = await loadElement("res/js/html_plains/back_button.html");
-                  button.addEventListener("click", () => container.close(true));
-                  container.appendChild(button);
+                this.showTempContainer(node, async (container) => {
+                  this.renderBackButton(container, () => container.close(true));
                   $(container).animateCss("fadeIn veryfaster");
-                  VK.audioUtils.getFullPlaylist({
-                    owner_id: user.id
-                  }).then((list) => {
-                    container.setContainerData("audios", list);
-                    this.renderAudioList(list, container, 0, 75);
-                  });
+
+                  var playlists = await VK.audioUtils.getUserPlaylists({ owner_id: user.id });
+                  var audios = await VK.audioUtils.getFullPlaylist({ owner_id: user.id });
+                  container.setContainerData("audios", audios);
+                  if (playlists) {
+                    var cb = () => {
+                      $(container).animateCss("fadeOut", () => {
+                        this.showTempContainer(container, async (albumsConainer) => {
+                          var back_btn = await loadElement("back_button");
+                          back_btn.addEventListener("click", () => albumsConainer.close(true));
+                          albumsConainer.appendChild(back_btn);
+                          this.renderPlaylists(playlists, albumsConainer, () => {
+                            $(albumsConainer).animateCss("fadeIn");
+                          });
+                        });
+                      });
+                    };
+                    await this.renderListHeader(container, "Плейлисты", true, playlists.length > 5 ? cb : false);
+                    await this.renderPlaylists(playlists.slice(0, 5), container);
+                  }
+                  await this.renderListHeader(container, "Все аудиозаписи", true)
+                  await this.renderAudioList(audios, container, 0, 75);
                 });
               });
             });
           } else {
             userNode.classList.add("closed");
-            //userNode.title = "User's audio is closed";
           }
           node.appendChild(userNode);
+          $(node).animateCss("fadeIn");
         });
       });
     },
@@ -581,7 +609,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
 
   function loadElement(p) {
     return new Promise((resolve, reject) => {
-      fs.readFile(path.join(INIT_INFO.PATH, p), (e, d) => {
+      fs.readFile(path.join(INIT_INFO.PATH, "res/js/html_plains", p + ".html"), (e, d) => {
         if (e) return reject(e);
         else resolve(createElementFromHTML(d));
       });
@@ -628,7 +656,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
 
   function searchHandler(query, needToChangeTab) {
     if (Player.data.searchProcessing) return;
-    if (Player.data.search) Player.controls.tabs.sub.search.innerHTML = "";
+    Player.controls.tabs.sub.search.innerHTML = "";
     Player.data.search = true;
     Player.data.searchProcessing = true;
     if (needToChangeTab) Player.controls.tabs.search_audio_list.click();
@@ -636,60 +664,29 @@ module.exports = function (VK, INIT_INFO, Settings) {
     Player.data.currentSearchQuery = query;
     Player.data.currentTabPlaylistName = "searchPlaylist";
     Player.controls.tabs.sub.search.removeTempNodes(true);
-    return loadElement("res/js/html_plains/search_box_albums_header.html").then((header) => {
-      // TODO artists list, my tracks and other
-      /* var list = Player.searchInMainPlaylist(query);
-      if (list.length) {
-        header.selectByClass("all-btn").remove();
-        header.selectByClass("title").innerHTML = "Мои аудиозаписи";
-        Player.controls.tabs.sub.search.appendChild(header);
-        Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50);
-      } */
-    }).then(() => {
-      return VK.audioUtils.getAllSearchBlocks({
-        q: query
-      }).then((lists) => {
-        var albums = lists.search_global_albums;
-        if (!albums) return false;
-        return loadElement("res/js/html_plains/search_box_albums_header.html").then((header) => {
-          //header.classList.add("border");
-          header.selectByClass("all-btn").addEventListener("click", () => {
-            return loadElement("res/js/html_plains/back_button.html").then((btn) => {
-              $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
-                Player.showTempContainer(Player.controls.tabs.sub.search, (albumsContainer) => {
-                  btn.addEventListener("click", () => {
-                    $(albumsContainer).animateCss("fadeOut", () => {
-                      albumsContainer.close();
-                    });
-                  });
-                  albumsContainer.appendChild(btn);
-                  Player.renderPlaylists(albums.items, albumsContainer);
-                  $(albumsContainer).animateCss("fadeIn");
-                });
-              });
-            });
-          });
-          Player.controls.tabs.sub.search.appendChild(header);
-          //$(Player.controls.tabs.sub.search).animateCss("fadeIn");
-          Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
-          return true;
+    VK.audioUtils.getAllSearchBlocks({
+      q: query
+    }).then(async (lists) => {
+      var albums = lists.search_global_albums;
+      if (!albums) return false;
+      await Player.renderListHeader(Player.controls.tabs.sub.search, "Альбомы", false, () => {
+        Player.showTempContainer(Player.controls.tabs.sub.search, async (container) => {
+          await Player.renderBackButton(container, () => container.close(true));
+          await Player.renderPlaylists(albums.items, container);
         });
-      }).catch(() => { });
-    }).then((bool) => {
+      });
+      await Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
+      return true;
+    }).catch(() => { }).then((bool) => {
       return VK.audioUtils.search({
         q: query
-      }).then((list) => {
-        return loadElement("res/js/html_plains/search_box_albums_header.html").then((header) => {
-          if (bool) header.classList.add("border");
-          header.selectByClass("title").innerHTML = "Все аудиозаписи";
-          header.selectByClass("all-btn").remove();
-          Player.controls.tabs.sub.search.appendChild(header);
-          Player.controls.tabs.sub.search.setContainerData("audios", list);
-          return Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
-            Player.data.searchProcessing = false;
-            return true;
-          });
+      }).then(async (list) => {
+        Player.controls.tabs.sub.search.setContainerData("audios", list);
+        await Player.renderListHeader(Player.controls.tabs.sub.search, "Все аудиозаписи", bool);
+        await Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
+          Player.data.searchProcessing = false;
         });
+        return true;
       });
     });
   }
@@ -771,5 +768,6 @@ module.exports = function (VK, INIT_INFO, Settings) {
   }
 
   global.player = Player; //for debug
+  global.vk = VK;
   return Player;
 };

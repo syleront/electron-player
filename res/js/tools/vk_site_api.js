@@ -122,6 +122,7 @@ var VK = {
           });
         };
         VK.api("users.get", {}).then((r) => {
+          if (!r) return VK.load(cookies);
           VK.user_id = r[0].id;
           VK.cookies = options.cookies;
           VK.audioUtils.getExportsHash().then((hash) => {
@@ -288,7 +289,7 @@ var VK = {
       });
     },
     getPlaylist: function (obj, dontTransformList) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           access_hash: obj.access_hash || "",
           act: "load_section",
@@ -305,11 +306,18 @@ var VK = {
           }, (e, r, b) => {
             if (e) throw e;
             var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            if (dontTransformList) {
-              resolve(json);
+            if (json.list) {
+              if (dontTransformList) {
+                resolve(json);
+              } else {
+                var list = audioListToObj(json.list);
+                resolve([list, json]);
+              }
+              
             } else {
-              var list = audioListToObj(json.list);
-              resolve([list, json]);
+              reject({
+                error: "playlist is not available"
+              });
             }
           });
       });
@@ -346,21 +354,25 @@ var VK = {
             var elems = b.match(/<a\shref="\/audio.+?>/g);
             var titles = b.match(/<a\sclass="audio_item__title".+?>(.+?)</g);
             var playlists = [];
-            elems.forEach((e, i) => {
-              var params = parseNodeParams(e);
-              var ids = params.href.match(/audio_playlist([-_0-9]+)/i)[1].split("_");
-              var access_hash = params.href.match(/\/([A-z0-9]+)$/i);
-              var picture = params.style.match(/http(?:s):\/\/.+?.jpg/i);
-              var title = titles[i].match(/>(.+?)</i)[1];
-              playlists.push({
-                owner_id: ids[0],
-                playlist_id: ids[1],
-                picture: picture ? picture[0] : null,
-                title: title,
-                access_hash: access_hash ? access_hash[1] : null
+            if (elems) {
+              elems.forEach((e, i) => {
+                var params = parseNodeParams(e);
+                var ids = params.href.match(/audio_playlist([-_0-9]+)/i)[1].split("_");
+                var access_hash = params.href.match(/\/([A-z0-9]+)$/i);
+                var picture = params.style.match(/http(?:s):\/\/.+?.jpg/i);
+                var title = titles[i].match(/>(.+?)</i)[1];
+                playlists.push({
+                  owner_id: ids[0],
+                  playlist_id: ids[1],
+                  picture: picture ? picture[0] : null,
+                  title: title,
+                  access_hash: access_hash ? access_hash[1] : null
+                });
               });
-            });
-            resolve(playlists);
+              resolve(playlists);
+            } else {
+              resolve(null);
+            }
           });
       });
     },
