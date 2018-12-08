@@ -1,0 +1,225 @@
+// тут страшно :\
+
+process.on("uncaughtException", (e) => {
+  console.log("uncaughtException " + e.stack);
+});
+
+module.exports = function (VK, INIT_INFO, Settings) {
+  const Player = require("./player-controls.js")(VK, INIT_INFO, Settings, {
+    showTempContainer
+  });
+
+  initTabs();
+  Player.reloadTabs();
+  changeTab();
+  applySettings(Settings);
+
+  function initTabs() {
+    let sidebar_links = Array.from(document.getElementsByClassName("tab-element"));
+    sidebar_links.filter((e) => e.getAttribute("tab")).forEach((e) => {
+      let id = e.getAttribute("tab");
+      let tabDiv = createTabDiv(id);
+      if (id !== Player.data.currentTab) tabDiv.style.display = "none";
+      let main_container = document.getElementById("main_container");
+      main_container.appendChild(tabDiv);
+      Player.controls.tabs[id] = e;
+      e.addEventListener("click", changeTab);
+    });
+
+    let subtabs = Array.from(document.getElementsByClassName("subtab-element"));
+    subtabs.forEach((subtab) => {
+      let alias = subtab.getAttribute("alias");
+      let for_tab = subtab.getAttribute("for_tab");
+      let playlist = subtab.getAttribute("playlist");
+      let additional_classes = subtab.getAttribute("add-class");
+
+      if (for_tab && playlist) {
+        let parent = document.getElementById(for_tab);
+        let subtabDiv = createSubtabDiv(parent, for_tab + "__" + playlist);
+        if (playlist !== Player.data.currentTabPlaylistName) subtabDiv.style.display = "none";
+        if (additional_classes) {
+          additional_classes.split(" ").forEach((className) => {
+            subtabDiv.classList.add(className);
+          });
+        }
+        let mainSubtabContainer = createSubtabContainer(subtabDiv);
+        if (alias) Player.controls.tabs.sub[alias] = mainSubtabContainer;
+
+        if (for_tab == Player.data.currentTab) {
+          subtab.style.display = "";
+        } else {
+          subtab.style.display = "none";
+        }
+      }
+      subtab.addEventListener("click", changeSubtab);
+    });
+  }
+
+  function applySettings(Settings) {
+    if (Settings.cover_spin == true) {
+      Player.controls.cover.classList.add("disk");
+      Player.controls.cover.classList.add("animation-spin");
+      document.getElementById("cover_disk_center").classList.add("disk-center");
+    }
+
+    if (Settings.transitions == false) {
+      let html = document.getElementsByTagName("html")[0];
+      html.style.setProperty("--fast-transition", "0s linear");
+      html.style.setProperty("--long-transition", "0s linear");
+    }
+
+    if (Settings.broadcast == true) {
+      Player.controls.broadcast.classList.add("active");
+    }
+  }
+
+  function onScrollHandler(evt) {
+    let node = evt.target;
+    if (isScrollOnTheBottom(node, 50)) {
+      let data = node.getContainerData();
+      if (!data) return;
+
+      Player.data.scrollStop = true;
+      if (data.type !== "audios") return;
+
+      let length = Player.getCurrentTabAudioNodes().length;
+      if (length < data.list.length) {
+        Player.renderAudioList(data.list, node, length, length + 50, () => {
+          Player.data.scrollStop = false;
+        });
+      } else {
+        Player.data.scrollStop = false;
+      }
+    } else if (isScrollOnTheTop(node, 400)) {
+      Array.from(node.childNodes).slice(75).forEach((e) => {
+        e.remove();
+      });
+    }
+  }
+
+  function isScrollOnTheBottom(el, offset) {
+    return el.scrollTop >= (el.scrollHeight - el.offsetHeight) - (offset || 0);
+  }
+
+  function isScrollOnTheTop(el, offset) {
+    return el.scrollTop <= (offset || 0);
+  }
+
+  function changeTab(evt) {
+    Player.controls.tabs[Player.data.currentTab].classList.remove("tab-element-selected");
+    Player.controls.tabs[Player.data.currentTab].classList.add("map-transition");
+
+    Player.data.currentTab = evt ? evt.target.getAttribute("tab") : Player.data.currentTab;
+    Player.controls.tabs[Player.data.currentTab].classList.add("tab-element-selected");
+    Player.controls.tabs[Player.data.currentTab].classList.remove("map-transition");
+
+    let subtabs = Array.from(document.getElementsByClassName("subtab-element"));
+    subtabs.forEach((subtab) => {
+      let for_tab = subtab.getAttribute("for_tab");
+      let subtab_container = document.getElementById(for_tab);
+      if (for_tab == Player.data.currentTab) {
+        subtab.style.display = "";
+        subtab_container.style.display = "";
+        if (subtab.classList.contains("selected")) {
+          subtab.click();
+        }
+      } else {
+        subtab.style.display = "none";
+        subtab_container.style.display = "none";
+      }
+    });
+
+    let container_header = document.getElementById("container_header");
+    if (subtabs.filter((e) => e.getAttribute("for_tab") == Player.data.currentTab).every((e) => e.style.display == "none" || e.classList.contains("hidden"))) {
+      container_header.style.display = "none";
+      Player.getCurrentTabContainerNode().style.marginTop = "";
+    } else {
+      container_header.style.display = "";
+      Player.getCurrentTabContainerNode().style.marginTop = container_header.offsetHeight + "px";
+    }
+  }
+
+  function changeSubtab(evt) {
+    let forTab = evt.target.getAttribute("for_tab");
+    let playlist = evt.target.getAttribute("playlist");
+    let id = forTab + "__" + playlist;
+    let tabMainContainer = document.getElementById(id).mainChildContainer;
+
+    Player.data.currentTabPlaylistName = playlist;
+
+    let forTabNode = document.getElementById(forTab);
+    let subtab_divs = Array.from(forTabNode.getElementsByClassName("map-subtab-div"));
+    subtab_divs.forEach((div) => {
+      if (div.id == id) {
+        div.style.display = "";
+        let container_header = document.getElementById("container_header");
+        let selected_subtab = Array.from(container_header.getElementsByClassName("subtab-element")).filter((e) => {
+          return e.getAttribute("for_tab") == Player.data.currentTab && e.classList.contains("selected");
+        })[0];
+        selected_subtab.classList.remove("selected");
+        evt.target.classList.add("selected");
+      } else {
+        div.style.display = "none";
+      }
+    });
+
+    $(tabMainContainer).animateCss("fadeIn veryfaster");
+  }
+
+  function showTempContainer(nodeToHide, _cb) {
+    nodeToHide.style.display = "none";
+    let div = createSubtabContainer((nodeToHide.parentNode || null));
+    div.temp = true;
+    div.close = function (fade) {
+      if (fade) {
+        $(div).animateCss("fadeOut", () => {
+          div.remove();
+          nodeToHide.style.display = "";
+          $(nodeToHide).animateCss("fadeIn veryfaster");
+        });
+      } else {
+        div.remove();
+        nodeToHide.style.display = "";
+      }
+    };
+    if (_cb) _cb(div);
+  }
+
+  function createTabDiv(id) {
+    let div = document.createElement("div");
+    div.classList.add("map-tab-div");
+    if (id) div.id = id;
+    return div;
+  }
+
+  function createSubtabDiv(parentDiv, id) {
+    let div = document.createElement("div");
+    div.classList.add("map-subtab-div");
+    if (id) div.id = id;
+    if (parentDiv) parentDiv.appendChild(div);
+    return div;
+  }
+
+  function createSubtabContainer(parentDiv, id) {
+    let div = document.createElement("div");
+    div.classList.add("map-subtab-container");
+    div.onscroll = onScrollHandler;
+    div.removeTempNodes = function (fade) {
+      parentDiv.childNodes.forEach((node) => {
+        if (node.close) node.close(fade);
+      });
+    };
+    div.setContainerData = function (type, list) {
+      div.container_data = { type, list };
+    };
+    div.getContainerData = function () {
+      return div.container_data || null;
+    };
+    if (id) div.id = id;
+    if (parentDiv) {
+      parentDiv.appendChild(div);
+      parentDiv.mainChildContainer = div;
+    }
+    return div;
+  }
+};

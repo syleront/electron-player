@@ -1,9 +1,9 @@
-var needle = require("needle");
-var audioUnmaskSource = require("./audioUnmaskSource.js");
-var prototypes = require("./prototypes");
+const needle = require("needle"),
+  audioUnmaskSource = require("./audio-unmask-source.js"),
+  prototypes = require("./prototypes.js");
 prototypes.init();
 
-var options = {
+let options = {
   multipart: true,
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0"
 };
@@ -12,16 +12,16 @@ process.on("uncaughtException", (e) => {
   console.log("uncaughtException " + e.stack);
 });
 
-var VK = {
+let VK = {
   auth: function (email, password) {
     return new Promise((resolve, reject) => {
       needle.get("https://vk.com/login", (e, r, b) => {
         if (e) throw e;
-        var ip_h = b.match(/name="ip_h" value="([A-z0-9]+)"/i);
-        var lg_h = b.match(/name="lg_h" value="([A-z0-9]+)"/i);
+        let ip_h = b.match(/name="ip_h" value="([A-z0-9]+)"/i);
+        let lg_h = b.match(/name="lg_h" value="([A-z0-9]+)"/i);
         if (!ip_h || !lg_h) throw "ip_h or lg_h is not finded at this page";
         options.cookies = r.cookies;
-        var data = {
+        let data = {
           _origin: "https://vk.com",
           act: "login",
           email: email,
@@ -40,7 +40,7 @@ var VK = {
               needle.get("https://vk.com/login?act=authcheck", options, (e, r, b) => {
                 if (e) throw e;
                 options.cookies = Object.assign(options.cookies, r.cookies);
-                var hash = b.match(/hash: '([0-9A-z]+_[0-9A-z]+)'/)[1];
+                let hash = b.match(/hash: '([0-9A-z]+_[0-9A-z]+)'/)[1];
                 reject({
                   code: 1,
                   check: function (code) {
@@ -48,7 +48,7 @@ var VK = {
                   },
                   sendSms: function () {
                     return new Promise((resolve, reject) => {
-                      var data = {
+                      let data = {
                         act: "a_authcheck_sms",
                         al: 1,
                         hash
@@ -72,7 +72,7 @@ var VK = {
   auth_check: function (code, hash) {
     return new Promise((resolve, reject) => {
       delete options.cookies.remixtst;
-      var data = {
+      let data = {
         act: "a_authcheck_code",
         al: 1,
         code,
@@ -82,7 +82,7 @@ var VK = {
       needle.post("https://vk.com/al_login.php", data, options, (e, r, b) => {
         if (e) throw e;
         options.cookies = Object.assign(options.cookies, r.cookies);
-        var url = b.match(/<!>\/(.+?)</);
+        let url = b.match(/<!>\/(.+?)</);
         if (!url) {
           reject({
             code: 2,
@@ -103,11 +103,11 @@ var VK = {
       options.cookies = cookies;
       needle.get("https://vk.com/dev/execute", options, (e, r, b) => {
         if (e) throw e;
-        var hash = b.match(/Dev\.methodRun\('([A-z0-9:]+)/i);
+        let hash = b.match(/Dev\.methodRun\('([A-z0-9:]+)/i);
         if (!hash) return reject({ code: 3, error: "incorect login or password" });
         VK.api = function (method, params) {
           return new Promise((resolve) => {
-            var data = {
+            let data = {
               param_code: "return API." + method + "(" + JSON.stringify(params) + ");",
               act: "a_run_method",
               al: 1,
@@ -116,7 +116,7 @@ var VK = {
               hash: hash[1],
             };
             needle.post("https://vk.com/dev", data, options, (e, r, b) => {
-              var res = JSON.parse(b.match(/{.*/)[0]);
+              let res = JSON.parse(b.match(/{.*/)[0]);
               resolve(res.response || res);
             });
           });
@@ -144,7 +144,7 @@ var VK = {
           offset: obj.offset || 0,
           type: "search",
           owner_id: VK.user_id,
-          search_q: obj.q,
+          search_q: obj.q || obj.query,
           search_history: 0,
           track_type: "default"
         }, {
@@ -152,8 +152,8 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            var list = audioListToObj(json.list);
+            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            let list = audioListToObj(json.list);
             resolve(list);
           });
       });
@@ -169,17 +169,17 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            var sections = json.join("").match(/<a(.+?)href="\/audios[0-9]+\?section=recoms_block(.+?)>/g);
+            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            let sections = json.join("").match(/<a(.+?)href="\/audios[0-9]+\?section=recoms_block(.+?)>/g);
             if (sections) {
-              var blocks = sections.map((e) => e.match(/section=recoms_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=recoms_block&type=", ""))[0]);
-              var load = blocks.map((e) => {
+              let blocks = sections.map((e) => e.match(/section=recoms_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=recoms_block&type=", ""))[0]);
+              let load = blocks.map((e) => {
                 return VK.audioUtils.loadBlockById({
                   id: e
                 });
               });
               Promise.all(load).then((lists) => {
-                var blocks = lists.remap("name");
+                let blocks = lists.remap("name");
                 resolve(blocks);
               }).catch(reject);
             } else {
@@ -205,10 +205,10 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var albums = b.match(/<a(.+?)href="\/audios[0-9]+\?section=search_block(.+?)>/gm);
+            let albums = b.match(/<a(.+?)href="\/audios[0-9]+\?section=search_block(.+?)>/gm);
             if (albums) {
-              var blocks = albums.map((e) => e.match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""))[0]);
-              var load = blocks.map((e) => {
+              let blocks = albums.map((e) => e.match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""))[0]);
+              let load = blocks.map((e) => {
                 return VK.audioUtils.loadBlockById({
                   id: e
                 });
@@ -237,15 +237,15 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var match = b.match(/audio\?z=audio_playlist(.+?)"/g);
+            let match = b.match(/audio\?z=audio_playlist(.+?)"/g);
             if (!match) {
               reject({
                 error: "Page isn't loaded"
               });
             } else {
-              var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+              let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
               if (json.type == "playlists") {
-                var hashes = b.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/g).unique().map((e) => e.match(/'(.*?)'/)[1]);
+                let hashes = b.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/g).unique().map((e) => e.match(/'(.*?)'/)[1]);
                 json.items = Object.entries(json.items).map((e, i) => {
                   e[1].playlist_id = e[0];
                   e[1].access_hash = hashes[i];
@@ -253,7 +253,7 @@ var VK = {
                 });
                 json.items.forEach((e) => {
                   if (e.photo) {
-                    var p = e.photo.angles[0].m;
+                    let p = e.photo.angles[0].m;
                     e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
                   }
                 });
@@ -283,7 +283,7 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
             resolve(json);
           });
       });
@@ -305,12 +305,12 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
             if (json.list) {
               if (dontTransformList) {
                 resolve(json);
               } else {
-                var list = audioListToObj(json.list);
+                let list = audioListToObj(json.list);
                 resolve([list, json]);
               }
               
@@ -324,7 +324,7 @@ var VK = {
     },
     getFullPlaylist: function (obj) {
       return new Promise((resolve) => {
-        var container = [];
+        let container = [];
         (function get(offset) {
           VK.audioUtils.getPlaylist(Object.assign(obj || {}, { offset })).then(([list, r]) => {
             container = container.concat(list);
@@ -351,16 +351,16 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var elems = b.match(/<a\shref="\/audio.+?>/g);
-            var titles = b.match(/<a\sclass="audio_item__title".+?>(.+?)</g);
-            var playlists = [];
+            let elems = b.match(/<a\shref="\/audio.+?>/g);
+            let titles = b.match(/<a\sclass="audio_item__title".+?>(.+?)</g);
+            let playlists = [];
             if (elems) {
               elems.forEach((e, i) => {
-                var params = parseNodeParams(e);
-                var ids = params.href.match(/audio_playlist([-_0-9]+)/i)[1].split("_");
-                var access_hash = params.href.match(/\/([A-z0-9]+)$/i);
-                var picture = params.style.match(/http(?:s):\/\/.+?.jpg/i);
-                var title = titles[i].match(/>(.+?)</i)[1];
+                let params = parseNodeParams(e);
+                let ids = params.href.match(/audio_playlist([-_0-9]+)/i)[1].split("_");
+                let access_hash = params.href.match(/\/([A-z0-9]+)$/i);
+                let picture = params.style.match(/http(?:s):\/\/.+?.jpg/i);
+                let title = titles[i].match(/>(.+?)</i)[1];
                 playlists.push({
                   owner_id: ids[0],
                   playlist_id: ids[1],
@@ -377,7 +377,7 @@ var VK = {
       });
     },
     getAudioById: function (obj) {
-      return new Promise((resolve) => {
+      return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           act: "reload_audio",
           al: 1,
@@ -387,8 +387,13 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            resolve(audioListToObj(json));
+            let match = b.match(/<!json>(.+?)<!>/i);
+            if (match) {
+              let json = JSON.parse(match[1]);
+              resolve(audioListToObj(json));
+            } else {
+              reject(null);
+            }
           });
       });
     },
@@ -407,7 +412,7 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
+            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
             json.list = audioListToObj(json.list);
             resolve(json);
           });
@@ -415,7 +420,7 @@ var VK = {
     },
     getAllRecomendations: function () {
       return new Promise((resolve) => {
-        var list = [];
+        let list = [];
         (function get(offset) {
           VK.audioUtils.getRecomendations({ offset }).then((res) => {
             list = list.concat(res.list);
@@ -443,9 +448,9 @@ var VK = {
             cookies: VK.cookies
           }, (e, r, b) => {
             if (e) throw e;
-            var match = b.match(/<!json>(.+?)$/i);
+            let match = b.match(/<!json>(.+?)$/i);
             if (match) {
-              var json = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
+              let json = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
               resolve(audioListToObj([json]));
             } else {
               reject({
@@ -572,10 +577,10 @@ function audioListToObj(list) {
 }
 
 function parseNodeParams(string) {
-  var params = string.match(/[A-z]+=(?:""|".+?")/g);
-  var obj = {};
+  let params = string.match(/[A-z]+=(?:""|".+?")/g);
+  let obj = {};
   params.forEach((e) => {
-    var p = e.split("=\"");
+    let p = e.split("=\"");
     obj[p[0]] = p[1].replace(/"$/, "");
   });
   return obj;

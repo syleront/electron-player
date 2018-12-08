@@ -2,14 +2,16 @@ process.on("uncaughtException", (e) => {
   console.log("uncaughtException " + e.stack);
 });
 
-module.exports = function (VK, INIT_INFO, Settings) {
-  const fs = require("fs");
-  const { remote, ipcRenderer } = require("electron");
-  const currentWindow = remote.getCurrentWindow();
-  const Audio = document.createElement("audio");
-  const playerEmitter = new EventEmitter();
+module.exports = function (VK, INIT_INFO, Settings, addons) {
+  const fs = require("fs"),
+    path = require("path"),
+    EventEmitter = require("events"),
+    { remote, ipcRenderer } = require("electron"),
+    currentWindow = remote.getCurrentWindow(),
+    Audio = document.createElement("audio");
 
-  var Player = {
+  let Player = {
+    emitter: new EventEmitter(),
     data: {
       currentTab: "main_audio_list",
       currentTabPlaylistName: "mainPlaylist",
@@ -37,7 +39,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
       }
     },
     getVisibleContainer: function () {
-      var divId = this.data.currentTab + "__" + this.data.currentTabPlaylistName;
+      let divId = this.data.currentTab + "__" + this.data.currentTabPlaylistName;
       return Array.from(document.getElementById(divId).getElementsByClassName("map-subtab-container")).filter((e) => e.style.display !== "none")[0];
     },
     getCurrentTabContainerNode: function () {
@@ -81,21 +83,21 @@ module.exports = function (VK, INIT_INFO, Settings) {
       });
     },
     searchInMainPlaylist: function (q) {
-      var reg = new RegExp(q, "i");
+      let reg = new RegExp(q, "i");
       return Player.data.mainPlaylist.filter((e) => reg.test(e.title) || reg.test(e.artist));
     },
     isTrackInMainPlaylist: function (id, needIndex) {
       if (this.data.mainPlaylist) {
-        var i = this.data.mainPlaylist.findIndex((e) => e.attachment_id == id);
+        let i = this.data.mainPlaylist.findIndex((e) => e.attachment_id == id);
         return needIndex ? i : (i > -1 ? true : false);
       } else {
         return false;
       }
     },
     setTrack: function (id) {
-      var trackInfo = this.getTrackinfoFromTracklist(id);
+      let trackInfo = this.getTrackinfoFromTracklist(id);
       if (!trackInfo) return;
-      playerEmitter.emit("set_track", id, (this.data.currentTrackId || false));
+      Player.emitter.emit("set_track", id, (this.data.currentTrackId || false));
       this.data.currentTrackId = id;
       new Promise((resolve) => {
         this.data.rangeInputBreak = true;
@@ -113,6 +115,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
         if (trackInfo.url) {
           this.data.rangeInputBreak = false;
           this.controls.range.max = trackInfo.duration;
+          Player.emitter.emit("set_cover", trackInfo);
           Audio.src = trackInfo.url;
           Audio.play().then(() => {
             crossfade(true).then(() => { });
@@ -126,10 +129,13 @@ module.exports = function (VK, INIT_INFO, Settings) {
             if (!r.length) return this.playNext();
             this.data.rangeInputBreak = false;
             this.controls.range.max = r[0].duration;
+            Player.emitter.emit("set_cover", trackInfo);
             Audio.src = r[0].url;
             Audio.play().then(() => {
               crossfade(true).then(() => { });
             });
+          }).catch(() => {
+            this.playNext();
           });
         }
       });
@@ -138,18 +144,18 @@ module.exports = function (VK, INIT_INFO, Settings) {
       if (id && id !== this.data.currentTrackId) {
         this.setTrack(id);
       } else if (!this.data.currentTrackId) {
-        var list = this.getCurrentTabTracklist();
+        let list = this.getCurrentTabTracklist();
         if (!list.length) return;
-        var newId = list[0].attachment_id;
+        let newId = list[0].attachment_id;
         this.setTrack(newId);
-        playerEmitter.emit("play", newId);
+        Player.emitter.emit("play", newId);
       } else if (Audio.paused) {
-        playerEmitter.emit("play", this.data.currentTrackId);
+        Player.emitter.emit("play", this.data.currentTrackId);
         Audio.play().then(() => {
           crossfade(true).then(() => { });
         });
       } else {
-        playerEmitter.emit("pause", this.data.currentTrackId);
+        Player.emitter.emit("pause", this.data.currentTrackId);
         crossfade(false).then(() => {
           Audio.pause();
         });
@@ -157,9 +163,9 @@ module.exports = function (VK, INIT_INFO, Settings) {
     },
     playNext: function () {
       if (!this.data.currentTrackId) return;
-      var currentTrackIndex = this.getCurrentTrackIndex();
+      let currentTrackIndex = this.getCurrentTrackIndex();
       if (currentTrackIndex !== this.data.currentTracklist.length - 1) {
-        var newId = this.data.currentTracklist[currentTrackIndex + 1].attachment_id;
+        let newId = this.data.currentTracklist[currentTrackIndex + 1].attachment_id;
         this.setTrack(newId);
       } else {
         this.setTrack(this.data.currentTracklist[0].attachment_id);
@@ -167,8 +173,8 @@ module.exports = function (VK, INIT_INFO, Settings) {
     },
     playPrev: function () {
       if (!this.data.currentTrackId) return;
-      var currentTrackIndex = this.getCurrentTrackIndex();
-      var newId;
+      let currentTrackIndex = this.getCurrentTrackIndex();
+      let newId;
       if (currentTrackIndex !== 0) {
         newId = this.data.currentTracklist[currentTrackIndex - 1].attachment_id;
         this.setTrack(newId);
@@ -182,10 +188,10 @@ module.exports = function (VK, INIT_INFO, Settings) {
       if (!list) list = [];
       return loadElement("audio_element").then((audioNode) => {
         (typeof from == "number" ? list.slice(from, to) : list).forEach((e) => {
-          var el = createAudioElement(e, audioNode);
+          let el = createAudioElement(e, audioNode);
           node.appendChild(el);
         });
-        var lastArg = arguments[arguments.length - 1];
+        let lastArg = arguments[arguments.length - 1];
         if (typeof lastArg == "function") {
           return lastArg();
         } else {
@@ -197,21 +203,21 @@ module.exports = function (VK, INIT_INFO, Settings) {
       if (!document.body.contains(node)) return;
       return loadElement("playlist_element").then((pl) => {
         list.forEach((playlist) => {
-          var playlistNode = pl.cloneNode(true);
+          let playlistNode = pl.cloneNode(true);
           if (playlist.photo && playlist.photo.url) playlist.picture = playlist.photo.url;
           playlistNode.playlistInfo = playlist;
           playlistNode.selectByClass("photo").src = playlist.picture || playlistNode.selectByClass("photo").src;
           playlistNode.selectByClass("title").innerHTML = playlist.title;
           playlistNode.addEventListener("click", () => {
             $(node).animateCss("fadeOut", () => {
-              Player.showTempContainer(node, (container) => {
+              this.showTempContainer(node, (container) => {
                 VK.audioUtils.getFullPlaylist({
                   access_hash: playlist.access_hash || "",
                   owner_id: playlist.owner_id,
                   playlist_id: playlist.id || playlist.playlist_id
                 }).then((r) => {
                   container.setContainerData("audios", r);
-                  this.renderBackButton(container, () => container.close(true)).then(() => {
+                  this.renderBackButton(container, container.close).then(() => {
                     this.renderAudioList(r, container, 0, 50, () => {
                       $(container).animateCss("fadeIn");
                     });
@@ -222,7 +228,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
           });
           node.appendChild(playlistNode);
         });
-        var lastArg = arguments[arguments.length - 1];
+        let lastArg = arguments[arguments.length - 1];
         if (typeof lastArg == "function") {
           return lastArg();
         } else {
@@ -250,36 +256,34 @@ module.exports = function (VK, INIT_INFO, Settings) {
       if (!document.body.contains(node)) return;
       return loadElement("people_element").then((nodePlain) => {
         list.forEach((user) => {
-          var userNode = nodePlain.cloneNode(true);
+          let userNode = nodePlain.cloneNode(true);
           userNode.selectByClass("title").innerHTML = user.first_name + "<br>" + user.last_name;
           userNode.selectByClass("photo").src = user.photo_100;
           if (user.can_see_audio) {
             userNode.addEventListener("click", () => {
               $(node).animateCss("fadeOut", () => {
                 this.showTempContainer(node, async (container) => {
-                  this.renderBackButton(container, () => container.close(true));
+                  this.renderBackButton(container, container.close);
                   $(container).animateCss("fadeIn veryfaster");
-
-                  var playlists = await VK.audioUtils.getUserPlaylists({ owner_id: user.id });
-                  var audios = await VK.audioUtils.getFullPlaylist({ owner_id: user.id });
+                  let playlists = await VK.audioUtils.getUserPlaylists({ owner_id: user.id });
+                  let audios = await VK.audioUtils.getFullPlaylist({ owner_id: user.id });
                   container.setContainerData("audios", audios);
                   if (playlists) {
-                    var cb = () => {
+                    let cb = () => {
                       $(container).animateCss("fadeOut", () => {
                         this.showTempContainer(container, async (albumsConainer) => {
-                          var back_btn = await loadElement("back_button");
-                          back_btn.addEventListener("click", () => albumsConainer.close(true));
+                          let back_btn = await loadElement("back_button");
+                          back_btn.addEventListener("click", albumsConainer.close);
                           albumsConainer.appendChild(back_btn);
-                          this.renderPlaylists(playlists, albumsConainer, () => {
-                            $(albumsConainer).animateCss("fadeIn");
-                          });
+                          await this.renderPlaylists(playlists, albumsConainer);
+                          $(albumsConainer).animateCss("fadeIn");
                         });
                       });
                     };
                     await this.renderListHeader(container, "Плейлисты", true, playlists.length > 5 ? cb : false);
                     await this.renderPlaylists(playlists.slice(0, 5), container);
                   }
-                  await this.renderListHeader(container, "Все аудиозаписи", true)
+                  await this.renderListHeader(container, "Все аудиозаписи", true);
                   await this.renderAudioList(audios, container, 0, 75);
                 });
               });
@@ -337,6 +341,8 @@ module.exports = function (VK, INIT_INFO, Settings) {
     }
   };
 
+  if (typeof addons == "object") Player = Object.assign(Player, addons);
+
   Audio.volume = Settings.volume || 1;
   Player.controls.volume.value = Audio.volume * 100;
   changeInputColor(Player.controls.volume);
@@ -368,7 +374,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
   });
 
   Player.controls.volume_parent.addEventListener("wheel", (evt) => {
-    var newValue = Settings.volume + (evt.deltaY < 0 ? 0.05 : -0.05);
+    let newValue = Settings.volume + (evt.deltaY < 0 ? 0.05 : -0.05);
     Audio.volume = (newValue < 0 ? 0 : (newValue > 1 ? 1 : newValue)).toFixed(2);
     Player.controls.volume.value = Audio.volume * 100;
     changeInputColor(Player.controls.volume);
@@ -436,7 +442,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
   });
 
   Player.controls.artist.addEventListener("click", () => {
-    var query = Player.controls.artist.innerHTML;
+    let query = Player.controls.artist.innerHTML;
     searchHandler(query, true);
   });
 
@@ -482,7 +488,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
 
   Audio.addEventListener("timeupdate", () => {
     if (Player.data.rangeInputBreak) return;
-    var value = Math.floor(Audio.currentTime);
+    let value = Math.floor(Audio.currentTime);
     Player.controls.range.value = value;
     Player.controls.time.innerText = secondsToString(value);
     changeInputColor(Player.controls.range);
@@ -496,7 +502,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
     }
   });
 
-  playerEmitter.on("play", (id) => {
+  Player.emitter.on("play", (id) => {
     Player.setTrackNodesStatus(id, true);
     Player.controls.play.innerHTML = "pause";
     if (Settings.cover_spin) {
@@ -505,7 +511,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
     setThumbarButtons(false);
   });
 
-  playerEmitter.on("pause", (id) => {
+  Player.emitter.on("pause", (id) => {
     Player.setTrackNodesStatus(id, false);
     Player.controls.play.innerHTML = "play_arrow";
     if (Settings.cover_spin) {
@@ -514,8 +520,8 @@ module.exports = function (VK, INIT_INFO, Settings) {
     setThumbarButtons(true);
   });
 
-  playerEmitter.on("set_track", (newId, oldId) => {
-    var trackInfo = Player.getTrackinfoFromTracklist(newId);
+  Player.emitter.on("set_track", (newId, oldId) => {
+    let trackInfo = Player.getTrackinfoFromTracklist(newId);
     if (oldId) Player.setTrackNodesStatus(oldId, false);
     Player.setTrackNodesStatus(newId, true);
     Player.controls.range.value = 0;
@@ -527,8 +533,16 @@ module.exports = function (VK, INIT_INFO, Settings) {
     Player.controls.cover.style.animationPlayState = "running";
     changeInputColor(Player.controls.range);
     setThumbarButtons(false);
+    if (Settings.broadcast) {
+      VK.audioUtils.setStatus({
+        audio: trackInfo.owner_id + "_" + trackInfo.id
+      });
+    }
+  });
+
+  Player.emitter.on("set_cover", (trackInfo) => {
     VK.audioUtils.getAudioCover(trackInfo).then((r) => {
-      var url = r || "res/html/img/nonsrc.svg";
+      let url = r || "res/html/img/nonsrc.svg";
       Player.data.currentCoverUrl = url;
       if (!Player.controls.cover.src_orig && !r) return;
       if (Player.controls.cover.src_orig !== url) {
@@ -561,11 +575,6 @@ module.exports = function (VK, INIT_INFO, Settings) {
         });
       }
     });
-    if (Settings.broadcast) {
-      VK.audioUtils.setStatus({
-        audio: trackInfo.owner_id + "_" + trackInfo.id
-      });
-    }
   });
 
   ipcRenderer.on("mediaKeyPressed", (event, data) => {
@@ -575,11 +584,11 @@ module.exports = function (VK, INIT_INFO, Settings) {
   function crossfade(up) {
     return new Promise((resolve) => {
       if (up) Audio.volume = 0;
-      var time = 400;
-      var step = Math.sqrt(time).toFixed(2);
-      var vol = Player.controls.volume.value / 100;
-      var i = setInterval(() => {
-        var n;
+      let time = 400;
+      let step = Math.sqrt(time).toFixed(2);
+      let vol = Player.controls.volume.value / 100;
+      let i = setInterval(() => {
+        let n;
         if (up) {
           n = Audio.volume + (vol / step);
           Audio.volume = n <= 1 ? n.toFixed(4) : 1;
@@ -601,8 +610,8 @@ module.exports = function (VK, INIT_INFO, Settings) {
   }
 
   function secondsToString(sec) {
-    var minutes = Math.floor(sec / 60);
-    var secs = sec % 60;
+    let minutes = Math.floor(sec / 60);
+    let secs = sec % 60;
     if (secs < 10) secs = "0" + secs;
     return minutes + ":" + secs;
   }
@@ -610,14 +619,14 @@ module.exports = function (VK, INIT_INFO, Settings) {
   function loadElement(p) {
     return new Promise((resolve, reject) => {
       fs.readFile(path.join(INIT_INFO.PATH, "res/js/html_plains", p + ".html"), (e, d) => {
-        if (e) return reject(e);
+        if (e) reject(e);
         else resolve(createElementFromHTML(d));
       });
     });
   }
 
   function createAudioElement(track, audioNode, isAdded) {
-    var node = audioNode.cloneNode(true);
+    let node = audioNode.cloneNode(true);
     node.trackInfo = track;
     node.selectByClass("time").innerHTML = secondsToString(track.duration);
     node.selectByClass("add-btn").addEventListener("click", addTrackHandler);
@@ -627,8 +636,8 @@ module.exports = function (VK, INIT_INFO, Settings) {
     });
     node.selectByClass("title").innerHTML = track.title;
     node.addEventListener("click", (evt) => {
-      var ignore = ["add-btn", "artist"];
-      var filtered = ignore.every((e) => !evt.toElement.classList.contains(e));
+      let ignore = ["add-btn", "artist"];
+      let filtered = ignore.every((e) => !evt.toElement.classList.contains(e));
       if (window.getSelection().isCollapsed && filtered) {
         Player.playPause(track.attachment_id);
       }
@@ -643,10 +652,10 @@ module.exports = function (VK, INIT_INFO, Settings) {
   }
 
   function changeInputColor(node) {
-    var bodyStyles = window.getComputedStyle(document.body);
-    var fromColor = bodyStyles.getPropertyValue("--slider-line-after-color");
-    var toColor = bodyStyles.getPropertyValue("--slider-line-before-color");
-    var val = (node.value - node.getAttribute("min")) / (node.getAttribute("max") - node.getAttribute("min"));
+    let bodyStyles = window.getComputedStyle(document.body);
+    let fromColor = bodyStyles.getPropertyValue("--slider-line-after-color");
+    let toColor = bodyStyles.getPropertyValue("--slider-line-before-color");
+    let val = (node.value - node.getAttribute("min")) / (node.getAttribute("max") - node.getAttribute("min"));
 
     node.setAttribute("style", "background-image: -webkit-gradient(linear, left top, right top, " +
       "color-stop(" + val + ", " + fromColor + ")," +
@@ -654,8 +663,9 @@ module.exports = function (VK, INIT_INFO, Settings) {
       ")");
   }
 
-  function searchHandler(query, needToChangeTab) {
+  async function searchHandler(query, needToChangeTab) {
     if (Player.data.searchProcessing) return;
+
     Player.controls.tabs.sub.search.innerHTML = "";
     Player.data.search = true;
     Player.data.searchProcessing = true;
@@ -664,36 +674,41 @@ module.exports = function (VK, INIT_INFO, Settings) {
     Player.data.currentSearchQuery = query;
     Player.data.currentTabPlaylistName = "searchPlaylist";
     Player.controls.tabs.sub.search.removeTempNodes(true);
-    VK.audioUtils.getAllSearchBlocks({
-      q: query
-    }).then(async (lists) => {
-      var albums = lists.search_global_albums;
-      if (!albums) return false;
-      await Player.renderListHeader(Player.controls.tabs.sub.search, "Альбомы", false, () => {
-        Player.showTempContainer(Player.controls.tabs.sub.search, async (container) => {
-          await Player.renderBackButton(container, () => container.close(true));
-          await Player.renderPlaylists(albums.items, container);
+
+    try {
+      let searchBlocks = await VK.audioUtils.getAllSearchBlocks({ q: query });
+      let albums = searchBlocks.search_global_albums;
+      let bool;
+      if (albums) {
+        await Player.renderListHeader(Player.controls.tabs.sub.search, "Альбомы", false, () => {
+          $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
+            Player.showTempContainer(Player.controls.tabs.sub.search, async (container) => {
+              await Player.renderBackButton(container, container.close);
+              await Player.renderPlaylists(albums.items, container);
+              $(Player.controls.tabs.sub.search).animateCss("fadeIn");
+            });
+          });
         });
-      });
-      await Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
+        await Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
+        bool = true;
+      } else {
+        bool = false;
+      }
+      let searchList = await VK.audioUtils.search({ query });
+      Player.controls.tabs.sub.search.setContainerData("audios", searchList);
+      await Player.renderListHeader(Player.controls.tabs.sub.search, "Все аудиозаписи", bool);
+      await Player.renderAudioList(searchList, Player.controls.tabs.sub.search, 0, 50);
+      Player.data.searchProcessing = false;
       return true;
-    }).catch(() => { }).then((bool) => {
-      return VK.audioUtils.search({
-        q: query
-      }).then(async (list) => {
-        Player.controls.tabs.sub.search.setContainerData("audios", list);
-        await Player.renderListHeader(Player.controls.tabs.sub.search, "Все аудиозаписи", bool);
-        await Player.renderAudioList(list, Player.controls.tabs.sub.search, 0, 50, () => {
-          Player.data.searchProcessing = false;
-        });
-        return true;
-      });
-    });
+    } catch (e) {
+      Player.data.searchProcessing = false;
+      console.error(e);
+    }
   }
 
   function addTrackHandler(evt) {
-    var node = evt.target.parentNode;
-    var track = node.trackInfo;
+    let node = evt.target.parentNode;
+    let track = node.trackInfo;
     if (Player.isTrackInMainPlaylist(track.attachment_id) || node.added) { // if track in main playlist or track node has been added from other tab
       if (node.inMaintracklist) {
         track = node.added;
@@ -733,7 +748,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
         VK.audioUtils.addAudio(track).then((r) => {
           node.added = r[0];
           node.selectByClass("add-btn").innerHTML = "clear";
-          var n = createAudioElement(r[0], node, true);
+          let n = createAudioElement(r[0], node, true);
           node.inMaintracklist = n;
           Player.data.mainPlaylist.unshift(r[0]);
           Player.controls.tabs.sub.main.insertAdjacentElement("afterbegin", n);
@@ -743,7 +758,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
   }
 
   function setThumbarButtons(paused) {
-    var buttonsList = [
+    let buttonsList = [
       {
         tooltip: "Prev",
         icon: path.join(INIT_INFO.PATH, "res/js/img/prev.png"),
@@ -765,6 +780,12 @@ module.exports = function (VK, INIT_INFO, Settings) {
       }
     ];
     currentWindow.setThumbarButtons(buttonsList);
+  }
+
+  function createElementFromHTML(htmlString) {
+    var div = document.createElement("div");
+    div.innerHTML = htmlString;
+    return div.firstChild;
   }
 
   global.player = Player; //for debug

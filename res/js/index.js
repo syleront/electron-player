@@ -1,13 +1,11 @@
-const vk = require("./res/js/tools/vk_site_api.js"),
+const vk = require("./res/js/tools/vk-site-api.js"),
   fs = require("fs"),
   path = require("path"),
   user_settings = tryRequireSettings(),
-  EventEmitter = require("events"),
+  PlayerJS = require("./res/js/player-ui.js"),
   INIT_INFO = {
     PATH: __dirname
   };
-
-let emitter = new EventEmitter();
 
 Node.prototype.selectByClass = function (className) {
   return this.getElementsByClassName(className)[0];
@@ -27,10 +25,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e) {
       renderLogin();
     } else {
-      var cookies = JSON.parse(d);
+      let cookies = JSON.parse(d);
       vk.load(cookies).then((API) => {
         loadPage("player").then(() => {
-          emitter.emit("auth", API, INIT_INFO, user_settings);
+          PlayerJS(API, INIT_INFO, user_settings);
         });
       }).catch((e) => {
         if (e.code == 3) {
@@ -42,22 +40,22 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function renderLogin() {
-  var tmp = {
+  let tmp = {
     auth_check: false
   };
   loadPage("login").then(() => {
-    var btn = document.getElementById("login_btn");
-    var preloader = document.getElementById("preloader");
+    let btn = document.getElementById("login_btn");
+    let preloader = document.getElementById("preloader");
     btn.addEventListener("click", () => {
       btn.parentNode.style.display = "none";
       preloader.style.display = "block";
       if (tmp.auth_check) {
-        var code = document.getElementById("auth_code").value;
+        let code = document.getElementById("auth_code").value;
         tmp.auth_check(code).then((API) => {
           fs.writeFile(path.join(__dirname, "data/cookies"), JSON.stringify(API.cookies), (e) => {
             if (e) throw e;
             loadPage("player").then(() => {
-              emitter.emit("auth", API, user_settings);
+              PlayerJS(API, INIT_INFO, user_settings);
             });
           });
         }).catch((e) => {
@@ -72,7 +70,7 @@ function renderLogin() {
                 btn.parentNode.style.display = "block";
                 preloader.style.display = "none";
                 if (e) throw e;
-                var el = createElementFromHTML(d);
+                let el = createElementFromHTML(d);
                 el.innerHTML = "Неверный код";
                 document.body.insertAdjacentElement("afterbegin", el);
                 tmp.incorrect = el;
@@ -81,13 +79,13 @@ function renderLogin() {
           }
         });
       } else {
-        var login = document.getElementById("login").value;
-        var pass = document.getElementById("password").value;
+        let login = document.getElementById("login").value;
+        let pass = document.getElementById("password").value;
         vk.auth(login, pass).then((API) => {
           fs.writeFile(path.join(__dirname, "data/cookies"), JSON.stringify(API.cookies), (e) => {
             if (e) throw e;
             loadPage("player").then(() => {
-              emitter.emit("auth", API, user_settings);
+              PlayerJS(API, INIT_INFO, user_settings);
             });
           });
         }).catch((e) => {
@@ -101,13 +99,13 @@ function renderLogin() {
             btn.innerText = "Отправить";
             tmp.auth_check = e.check;
 
-            var sms_div = document.getElementById("send_sms");
-            var textNode = document.getElementById("text_sms_sended");
+            let sms_div = document.getElementById("send_sms");
+            let textNode = document.getElementById("text_sms_sended");
             sms_div.style.display = "block";
             sms_div.addEventListener("click", () => {
               if (tmp.waitSms) return;
               e.sendSms().then((b) => {
-                var t = b.match(/<!int>([0-9]+)/);
+                let t = b.match(/<!int>([0-9]+)/);
                 setTimeout(() => {
                   if (tmp && tmp.waitSms) {
                     tmp.waitSms = false;
@@ -117,7 +115,7 @@ function renderLogin() {
                 tmp.waitSms = true;
                 sms_div.childNodes[1].setAttribute("class", "center-align map-link-a-disabled");
 
-                var s = b.match(/<!>(<b>.+?)<!/);
+                let s = b.match(/<!>(<b>.+?)<!/);
                 textNode.innerHTML = s ? s[1] : "SMS с кодом отправлено";
                 textNode.style.display = "block";
                 sms_div.style.display = "block";
@@ -126,7 +124,7 @@ function renderLogin() {
                 throw e;
               });
             });
-            auth_check_form.addEventListener("keydown", (evt) => {
+            document.getElementById("auth_check_form").addEventListener("keydown", (evt) => {
               if (evt.keyCode == 13) {
                 btn.click();
               }
@@ -141,7 +139,7 @@ function renderLogin() {
                 btn.parentNode.style.display = "block";
                 preloader.style.display = "none";
                 if (e) throw e;
-                var el = createElementFromHTML(d);
+                let el = createElementFromHTML(d);
                 el.innerHTML = "Неверный логин или пароль!";
                 document.body.insertAdjacentElement("afterbegin", el);
                 tmp.incorrect = el;
@@ -151,7 +149,7 @@ function renderLogin() {
         });
       }
     });
-    auth_forms.addEventListener("keydown", (evt) => {
+    document.getElementById("auth_forms").addEventListener("keydown", (evt) => {
       if (evt.keyCode == 13) {
         btn.click();
       }
@@ -173,13 +171,13 @@ function loadPage(name) {
 }
 
 function createElementFromHTML(htmlString) {
-  var div = document.createElement("div");
+  let div = document.createElement("div");
   div.innerHTML = htmlString;
   return div.firstChild;
 }
 
 function tryRequireSettings() {
-  var defaults = {
+  let defaults = {
     cover_spin: false,
     volume: 1,
     animations: true,
@@ -190,7 +188,7 @@ function tryRequireSettings() {
     }
   };
   try {
-    var s = require("./data/settings.json");
+    let s = require("./data/settings.json");
     return Object.assign(defaults, s);
   } catch (e) {
     return defaults;
