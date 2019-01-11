@@ -8,7 +8,10 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
     EventEmitter = require("events"),
     { remote, ipcRenderer } = require("electron"),
     currentWindow = remote.getCurrentWindow(),
-    Audio = document.createElement("audio");
+    Audio = document.createElement("audio"),
+    Prototypes = require("./tools/prototypes.js");
+
+  Prototypes.init();
 
   let Player = {
     emitter: new EventEmitter(),
@@ -34,19 +37,22 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
       repeat: document.getElementById("repeat_button"),
       broadcast: document.getElementById("broadcast_button"),
       refresh: document.getElementById("refresh_button"),
+      back_button: document.getElementById("back_button"),
       tabs: {
         sub: {}
       }
-    },
-    getVisibleContainer: function () {
-      let divId = this.data.currentTab + "__" + this.data.currentTabPlaylistName;
-      return Array.from(document.getElementById(divId).getElementsByClassName("map-subtab-container")).filter((e) => e.style.display !== "none")[0];
     },
     getCurrentTabContainerNode: function () {
       return document.getElementById(this.data.currentTab);
     },
     getCurrentSubtabContainerNode: function () {
       return document.getElementById(this.data.currentTab + "__" + this.data.currentTabPlaylistName);
+    },
+    getVisibleContainer: function () {
+      let nodes = this.getCurrentSubtabContainerNode().childNodes;
+      return nodes[nodes.length - 1];
+      //let divId = this.data.currentTab + "__" + this.data.currentTabPlaylistName;
+      //return Array.from(document.getElementById(divId).getElementsByClassName("map-subtab-container")).filter((e) => e.style.display !== "none")[0];
     },
     getCurrentTabAudioNodes: function () {
       return Array.from(this.getVisibleContainer().getElementsByClassName("map-audio-element"));
@@ -58,7 +64,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
       return this.getVisibleContainer().getContainerData().list || this.getListFromAudioNodes(this.getCurrentTabAudioNodes());
     },
     setCurrentTabTracklist: function () {
-      this.data.currentTracklist = this.getCurrentTabTracklist();
+      this.data.currentTracklist = this.getCurrentTabTracklist().slice(0);
       if (Player.data.shuffle == true) {
         this.data.nonShuffledCurrentTracklist = this.data.currentTracklist.slice(0);
         this.data.currentTracklist.sort(() => Math.random() - 0.5);
@@ -77,9 +83,9 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
     getTrackNodesById: function (id) {
       return Array.from(document.getElementsByClassName("map-audio-element")).filter((e) => e.trackInfo.attachment_id == id);
     },
-    setTrackNodesStatus: function (id, play) {
+    setTrackNodesStatus: function (id, state) {
       this.getTrackNodesById(id).forEach((e) => {
-        e.selectByClass("play-btn").innerHTML = (play ? "pause_circle_filled" : "play_circle_filled");
+        e.selectByClass("play-btn").innerHTML = `${state}_circle_filled`;
       });
     },
     searchInMainPlaylist: function (q) {
@@ -121,11 +127,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
             crossfade(true).then(() => { });
           });
         } else {
-          VK.audioUtils.getAudioById({
-            owner_id: trackInfo.owner_id,
-            id: trackInfo.id,
-            hashes: trackInfo.hashes
-          }).then((r) => {
+          VK.audioUtils.getAudioById(trackInfo).then((r) => {
             if (!r.length) return this.playNext();
             this.data.rangeInputBreak = false;
             this.controls.range.max = r[0].duration;
@@ -209,18 +211,16 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
           playlistNode.selectByClass("photo").src = playlist.picture || playlistNode.selectByClass("photo").src;
           playlistNode.selectByClass("title").innerHTML = playlist.title;
           playlistNode.addEventListener("click", () => {
-            $(node).animateCss("fadeOut", () => {
-              this.showTempContainer(node, (container) => {
+            $(node).animateCss("fadeOut").then(() => {
+              this.showTempContainer(node).then((container) => {
                 VK.audioUtils.getFullPlaylist({
                   access_hash: playlist.access_hash || "",
                   owner_id: playlist.owner_id,
                   playlist_id: playlist.id || playlist.playlist_id
                 }).then((r) => {
                   container.setContainerData("audios", r);
-                  this.renderBackButton(container, container.close).then(() => {
-                    this.renderAudioList(r, container, 0, 50, () => {
-                      $(container).animateCss("fadeIn");
-                    });
+                  this.renderAudioList(r, container, 0, 50, () => {
+                    $(container).animateCss("fadeIn");
                   });
                 });
               });
@@ -246,12 +246,6 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
         return header;
       });
     },
-    renderBackButton: function (node, _cb) {
-      return loadElement("back_button").then((button) => {
-        button.addEventListener("click", _cb);
-        node.appendChild(button);
-      });
-    },
     renderUsers: function (list, node) {
       if (!document.body.contains(node)) return;
       return loadElement("people_element").then((nodePlain) => {
@@ -261,37 +255,71 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
           userNode.selectByClass("photo").src = user.photo_100;
           if (user.can_see_audio) {
             userNode.addEventListener("click", () => {
-              $(node).animateCss("fadeOut", () => {
-                this.showTempContainer(node, async (container) => {
-                  this.renderBackButton(container, container.close);
-                  $(container).animateCss("fadeIn veryfaster");
+              $(node).animateCss("fadeOut").then(() => {
+                this.showTempContainer(node).then(async (container) => {
+                  container.style.display = "none";
                   let playlists = await VK.audioUtils.getUserPlaylists({ owner_id: user.id });
                   let audios = await VK.audioUtils.getFullPlaylist({ owner_id: user.id });
                   container.setContainerData("audios", audios);
                   if (playlists) {
                     let cb = () => {
-                      $(container).animateCss("fadeOut", () => {
-                        this.showTempContainer(container, async (albumsConainer) => {
-                          let back_btn = await loadElement("back_button");
-                          back_btn.addEventListener("click", albumsConainer.close);
-                          albumsConainer.appendChild(back_btn);
+                      $(container).animateCss("fadeOut").then(() => {
+                        this.showTempContainer(container).then(async (albumsConainer) => {
                           await this.renderPlaylists(playlists, albumsConainer);
                           $(albumsConainer).animateCss("fadeIn");
                         });
                       });
                     };
-                    await this.renderListHeader(container, "Плейлисты", true, playlists.length > 5 ? cb : false);
+                    await this.renderListHeader(container, "Плейлисты", false, playlists.length > 5 ? cb : false);
                     await this.renderPlaylists(playlists.slice(0, 5), container);
                   }
                   await this.renderListHeader(container, "Все аудиозаписи", true);
                   await this.renderAudioList(audios, container, 0, 75);
+                  container.style.display = "";
+                  $(container).animateCss("fadeIn veryfaster");
                 });
+                //this.controls.tabs.sub.peoplewall;
               });
             });
           } else {
             userNode.classList.add("closed");
           }
           node.appendChild(userNode);
+          $(node).animateCss("fadeIn");
+        });
+      });
+    },
+    renderGroups: function (list, node) {
+      if (!document.body.contains(node)) return;
+      return loadElement("group_element").then((nodePlain) => {
+        list.forEach((group) => {
+          let groupNode = nodePlain.cloneNode(true);
+          groupNode.selectByClass("title").innerHTML = group.name;
+          groupNode.selectByClass("photo").src = group.photo_100;
+          groupNode.addEventListener("click", () => {
+            $(node).animateCss("fadeOut").then(() => {
+              Player.showTempContainer(node).then((container) => {
+                container.data_offset = 0;
+                container.setContainerData("audios", []);
+                let load = function (_cb) {
+                  VK.audioUtils.getWallAudioFromWall({
+                    owner_id: group.id * -1,
+                    offset: container.data_offset
+                  }).then((list) => {
+                    container.data_offset += 9;
+                    let containerList = container.getContainerData();
+                    container.setContainerData("audios", containerList.list.concat(list).removeDuplicates("attachment_id"));
+                    Player.renderAudioList(list, container).then(_cb);
+                    let length = Player.getCurrentTabAudioNodes().length;
+                    if (length < 75) load(_cb);
+                  });
+                };
+                container.setOnScrollFunction(load);
+                load();
+              });
+            });
+          });
+          node.appendChild(groupNode);
           $(node).animateCss("fadeIn");
         });
       });
@@ -330,13 +358,20 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
         }
       }).then(() => {
         Player.controls.tabs.sub.people.innerHTML = "";
-        return VK.api("friends.get", {
+        return VK.api.friends.get({
           fields: "photo_100,can_see_audio",
           order: "hints"
         }).then((list) => {
           Player.controls.tabs.sub.people.setContainerData("people", list);
           Player.renderUsers(list.items, Player.controls.tabs.sub.people);
         });
+      }).then(() => {
+        return VK.api.groups.get({
+          extended: 1
+        }).then((list) => {
+          Player.controls.tabs.sub.groups.setContainerData("groups", list.items);
+          Player.renderGroups(list.items, Player.controls.tabs.sub.groups);
+        }).catch(console.log);
       });
     }
   };
@@ -347,7 +382,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
   Player.controls.volume.value = Audio.volume * 100;
   changeInputColor(Player.controls.volume);
   changeInputColor(Player.controls.range);
-  setThumbarButtons(true);
+  setThumbarButtons("play");
 
   Player.controls.play.addEventListener("click", () => {
     Player.playPause();
@@ -442,8 +477,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
   });
 
   Player.controls.artist.addEventListener("click", () => {
-    let query = Player.controls.artist.innerHTML;
-    searchHandler(query, true);
+    searchHandler(Player.controls.artist.innerHTML, true);
   });
 
   Player.controls.cover.addEventListener("click", () => {
@@ -456,13 +490,13 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
       Player.data.clickEasterEggCount += 1;
       if (Player.data.clickEasterEggCount == 5) {
         clearTimeout(Player.data.easterEggTimeout);
-        $(Player.controls.cover).animateCss("fadeOut veryfaster", () => {
+        $(Player.controls.cover).animateCss("fadeOut veryfaster").then(() => {
           Player.controls.cover.src = "res/html/img/lenny.png";
-          $(Player.controls.cover).animateCss("fadeIn veryfaster", () => {
+          $(Player.controls.cover).animateCss("fadeIn veryfaster").then(() => {
             setTimeout(() => {
-              $(Player.controls.cover).animateCss("fadeOut veryfaster", () => {
+              $(Player.controls.cover).animateCss("fadeOut veryfaster").then(() => {
                 Player.controls.cover.src = Player.data.currentCoverUrl || "res/html/img/nonsrc.svg";
-                $(Player.controls.cover).animateCss("fadeIn veryfaster", () => {
+                $(Player.controls.cover).animateCss("fadeIn veryfaster").then(() => {
                   delete Player.data.clickEasterEggCount;
                 });
               });
@@ -503,27 +537,28 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
   });
 
   Player.emitter.on("play", (id) => {
-    Player.setTrackNodesStatus(id, true);
+    Player.setTrackNodesStatus(id, "pause");
     Player.controls.play.innerHTML = "pause";
     if (Settings.cover_spin) {
       Player.controls.cover.style.animationPlayState = "running";
     }
-    setThumbarButtons(false);
+    setThumbarButtons("pause");
   });
 
   Player.emitter.on("pause", (id) => {
-    Player.setTrackNodesStatus(id, false);
+    Player.setTrackNodesStatus(id, "play");
     Player.controls.play.innerHTML = "play_arrow";
     if (Settings.cover_spin) {
       Player.controls.cover.style.animationPlayState = "paused";
     }
-    setThumbarButtons(true);
+    //document.title = "Electron Player for VK";
+    setThumbarButtons("play");
   });
 
   Player.emitter.on("set_track", (newId, oldId) => {
     let trackInfo = Player.getTrackinfoFromTracklist(newId);
-    if (oldId) Player.setTrackNodesStatus(oldId, false);
-    Player.setTrackNodesStatus(newId, true);
+    if (oldId) Player.setTrackNodesStatus(oldId, "play");
+    Player.setTrackNodesStatus(newId, "pause");
     Player.controls.range.value = 0;
     Player.controls.play.innerHTML = "pause";
     Player.controls.title.innerHTML = trackInfo.title;
@@ -532,7 +567,8 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
     Player.controls.time.innerText = "0:00";
     Player.controls.cover.style.animationPlayState = "running";
     changeInputColor(Player.controls.range);
-    setThumbarButtons(false);
+    setThumbarButtons("pause");
+    document.title = decodeHtmlEntity(trackInfo.artist + " - " + trackInfo.title);
     if (Settings.broadcast) {
       VK.audioUtils.setStatus({
         audio: trackInfo.owner_id + "_" + trackInfo.id
@@ -549,7 +585,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
         if (Player.controls.cover.classList.contains("animation-spin")) {
           Player.controls.cover.classList.remove("animation-spin");
         }
-        $(Player.controls.cover).animateCss("fadeOut superfaster", () => {
+        $(Player.controls.cover).animateCss("fadeOut superfaster").then(() => {
           Player.controls.cover.style.opacity = "0";
           Player.controls.cover.src = url;
           Player.controls.cover.src_orig = url;
@@ -562,7 +598,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
           }
           Player.controls.cover.onload = function () {
             Player.controls.cover.style.opacity = "1";
-            $(Player.controls.cover).animateCss("fadeIn superfaster", () => {
+            $(Player.controls.cover).animateCss("fadeIn superfaster").then(() => {
               Player.controls.cover.classList.remove("animated");
               Player.controls.cover.classList.remove("fadeOut");
               Player.controls.cover.classList.remove("superfaster");
@@ -605,7 +641,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
           Audio.volume = vol;
         }
         resolve(true);
-      }, time + 5);
+      }, time);
     });
   }
 
@@ -680,14 +716,11 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
       let albums = searchBlocks.search_global_albums;
       let bool;
       if (albums) {
-        await Player.renderListHeader(Player.controls.tabs.sub.search, "Альбомы", false, () => {
-          $(Player.controls.tabs.sub.search).animateCss("fadeOut", () => {
-            Player.showTempContainer(Player.controls.tabs.sub.search, async (container) => {
-              await Player.renderBackButton(container, container.close);
-              await Player.renderPlaylists(albums.items, container);
-              $(Player.controls.tabs.sub.search).animateCss("fadeIn");
-            });
-          });
+        await Player.renderListHeader(Player.controls.tabs.sub.search, "Альбомы", false, async () => {
+          await $(Player.controls.tabs.sub.search).animateCss("fadeOut");
+          let container = await Player.showTempContainer(Player.controls.tabs.sub.search);
+          await Player.renderPlaylists(albums.items, container);
+          $(Player.controls.tabs.sub.search).animateCss("fadeIn");
         });
         await Player.renderPlaylists(albums.items.slice(0, 5), Player.controls.tabs.sub.search);
         bool = true;
@@ -714,11 +747,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
         track = node.added;
         delete node.added;
       }
-      VK.audioUtils.deleteAudio({
-        owner_id: track.owner_id,
-        id: track.id,
-        hashes_string: track.hashes_string
-      }).then(() => {
+      VK.audioUtils.deleteAudio(track).then(() => {
         node.selectByClass("add-btn").innerHTML = "add";
         if (Player.data.currentTab == "main_audio_list") {
           node.classList.add("audio-removed");
@@ -732,11 +761,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
       });
     } else {
       if (node.canBeRestored) { // if track has been removed from main tracklist and user restore it
-        VK.audioUtils.restoreAudio({
-          owner_id: track.owner_id,
-          id: track.id,
-          hashes_string: track.hashes_string
-        }).then(() => {
+        VK.audioUtils.restoreAudio(track).then(() => {
           VK.audioUtils.getAudioById(track).then((r) => {
             node.selectByClass("add-btn").innerHTML = "clear";
             node.classList.remove("audio-removed");
@@ -757,7 +782,7 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
     }
   }
 
-  function setThumbarButtons(paused) {
+  function setThumbarButtons(state) {
     let buttonsList = [
       {
         tooltip: "Prev",
@@ -766,8 +791,8 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
           Player.playPrev();
         }
       }, {
-        tooltip: paused ? "Play" : "Pause",
-        icon: paused ? path.join(INIT_INFO.PATH, "res/js/img/play.png") : path.join(INIT_INFO.PATH, "res/js/img/pause.png"),
+        tooltip: state,
+        icon: path.join(INIT_INFO.PATH, `res/js/img/${state}.png`),
         click() {
           Player.playPause();
         }
@@ -786,6 +811,12 @@ module.exports = function (VK, INIT_INFO, Settings, addons) {
     var div = document.createElement("div");
     div.innerHTML = htmlString;
     return div.firstChild;
+  }
+
+  function decodeHtmlEntity(str) {
+    return str.replace(/&#(\d+);/g, function (match, dec) {
+      return String.fromCharCode(dec);
+    });
   }
 
   global.player = Player; //for debug

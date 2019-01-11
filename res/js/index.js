@@ -40,9 +40,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function renderLogin() {
-  let tmp = {
-    auth_check: false
-  };
+  let tmp = {};
   loadPage("login").then(() => {
     let btn = document.getElementById("login_btn");
     let preloader = document.getElementById("preloader");
@@ -183,8 +181,13 @@ function tryRequireSettings() {
     animations: true,
     transitions: true,
     broadcast: false,
-    save: function () {
-      fs.writeFile(path.join(__dirname, "data/settings.json"), JSON.stringify(this), () => { });
+    save: () => {
+      return new Promise((resolve, reject) => {
+        fs.writeFile(path.join(__dirname, "data/settings.json"), JSON.stringify(defaults), (e, d) => {
+          if (e) reject(e);
+          else resolve(d);
+        });
+      });
     }
   };
   try {

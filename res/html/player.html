@@ -55,29 +55,35 @@
       <div class="tab-element map-background-transition tab-element-selected" tab="main_audio_list">
         Мои аудиозаписи
       </div>
-      <!-- <div class="tab-element map-background-transition" tab="recommendations_audio_list">
-        Рекомендации
-      </div> -->
       <div class="tab-element map-background-transition" tab="search_audio_list">
         Поиск
       </div>
-      <div class="tab-element map-background-transition" tab="people_audio_list">
+      <div data-header="hidden" class="tab-element map-background-transition" tab="people_audio_list">
         Люди
+      </div>
+      <div data-header="hidden" class="tab-element map-background-transition" tab="groups_audio_list">
+        Группы
       </div>
     </div>
   </div>
 
   <div id="main_container" class="map-container-parent">
     <div id="container_header" class="header">
+      <div id="back_button" class="back-button">
+        <i class="material-icons ">arrow_back_ios</i>
+      </div>
+      <!-- <img id="back_button" src="res/html/img/back.png"> -->
       <input placeholder="Поиск" type="text" id="search_box" class="search-box">
       <i id="refresh_button" title="Reload tabs" class="material-icons reload-button">refresh</i>
-      <button alias="main" class="subtab-element selected map-background-transition" for_tab="main_audio_list" playlist="mainPlaylist">Треки</button>
-      <button alias="playlists" class="subtab-element map-background-transition" for_tab="main_audio_list" playlist="playlistsPlaylist">Плейлисты</button>
-      <button alias="recoms" class="subtab-element map-background-transition" for_tab="main_audio_list" playlist="recomsPlaylist">Рекомендации</button>
+      <button data-alias="main" class="subtab-element selected map-background-transition" for_tab="main_audio_list" playlist="mainPlaylist">Треки</button>
+      <button data-alias="playlists" class="subtab-element map-background-transition" for_tab="main_audio_list" playlist="playlistsPlaylist">Плейлисты</button>
+      <button data-alias="recoms" class="subtab-element map-background-transition" for_tab="main_audio_list" playlist="recomsPlaylist">Рекомендации</button>
 
-      <button alias="search" class="subtab-element selected map-background-transition" for_tab="search_audio_list" playlist="searchPlaylist">Результаты</button>
+      <button data-alias="search" class="subtab-element selected map-background-transition" for_tab="search_audio_list" playlist="searchPlaylist">Результаты</button>
 
-      <button alias="people" class="subtab-element selected map-background-transition" for_tab="people_audio_list" playlist="friendList">Друзья</button>
+      <button data-alias="people" class="subtab-element selected map-background-transition" for_tab="people_audio_list" playlist="friendList">Друзья</button>
+
+      <button data-alias="groups" class="subtab-element selected map-background-transition" for_tab="groups_audio_list" playlist="groupList">Подписки</button>
     </div>
   </div>
 </div>

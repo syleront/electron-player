@@ -6,13 +6,15 @@ process.on("uncaughtException", (e) => {
 
 module.exports = function (VK, INIT_INFO, Settings) {
   const Player = require("./player-controls.js")(VK, INIT_INFO, Settings, {
-    showTempContainer
+    showTempContainer, hideHeader, showHeader
   });
 
   initTabs();
   Player.reloadTabs();
   changeTab();
   applySettings(Settings);
+
+  window.addEventListener("resize", calculateHeaderOffset);
 
   function initTabs() {
     let sidebar_links = Array.from(document.getElementsByClassName("tab-element"));
@@ -28,7 +30,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
 
     let subtabs = Array.from(document.getElementsByClassName("subtab-element"));
     subtabs.forEach((subtab) => {
-      let alias = subtab.getAttribute("alias");
+      let alias = subtab.dataset.alias;
       let for_tab = subtab.getAttribute("for_tab");
       let playlist = subtab.getAttribute("playlist");
       let additional_classes = subtab.getAttribute("add-class");
@@ -53,6 +55,18 @@ module.exports = function (VK, INIT_INFO, Settings) {
       }
       subtab.addEventListener("click", changeSubtab);
     });
+
+    Player.controls.back_button.addEventListener("click", () => {
+      let visible = Player.getVisibleContainer();
+      if (visible.temp == true) {
+        visible.close(true, () => {
+          let new_visible = Player.getVisibleContainer();
+          if (new_visible.temp !== true) {
+            hideBackButton();
+          }
+        });
+      }
+    });
   }
 
   function applySettings(Settings) {
@@ -75,12 +89,12 @@ module.exports = function (VK, INIT_INFO, Settings) {
 
   function onScrollHandler(evt) {
     let node = evt.target;
-    if (isScrollOnTheBottom(node, 50)) {
-      let data = node.getContainerData();
-      if (!data) return;
+    let data = node.getContainerData();
+    if (!data || data.type !== "audios") return;
+    if (Player.data.scrollStop == true) return;
 
+    if (isScrollOnTheBottom(node, 50)) {
       Player.data.scrollStop = true;
-      if (data.type !== "audios") return;
 
       let length = Player.getCurrentTabAudioNodes().length;
       if (length < data.list.length) {
@@ -88,7 +102,14 @@ module.exports = function (VK, INIT_INFO, Settings) {
           Player.data.scrollStop = false;
         });
       } else {
-        Player.data.scrollStop = false;
+        let onScrollFunction = node.getOnScrollFunction();
+        if (onScrollFunction) {
+          onScrollFunction(() => {
+            Player.data.scrollStop = false;
+          });
+        } else {
+          Player.data.scrollStop = false;
+        }
       }
     } else if (isScrollOnTheTop(node, 400)) {
       Array.from(node.childNodes).slice(75).forEach((e) => {
@@ -129,13 +150,16 @@ module.exports = function (VK, INIT_INFO, Settings) {
       }
     });
 
-    let container_header = document.getElementById("container_header");
-    if (subtabs.filter((e) => e.getAttribute("for_tab") == Player.data.currentTab).every((e) => e.style.display == "none" || e.classList.contains("hidden"))) {
-      container_header.style.display = "none";
-      Player.getCurrentTabContainerNode().style.marginTop = "";
+    let first_visible_subtab = subtabs.filter((subtab) => subtab.style.display !== "none")[0];
+    if (!first_visible_subtab.classList.contains("first")) first_visible_subtab.classList.add("first");
+    /* subtabs.filter((e) => e.getAttribute("for_tab") == Player.data.currentTab).every((e) => e.style.display == "none"
+            || e.classList.contains("hidden"))
+            || */
+    let subtab_header_is_hidden = Player.getVisibleContainer().dataset.header == "hidden";
+    if (subtab_header_is_hidden) {
+      hideHeader();
     } else {
-      container_header.style.display = "";
-      Player.getCurrentTabContainerNode().style.marginTop = container_header.offsetHeight + "px";
+      showHeader();
     }
   }
 
@@ -164,25 +188,71 @@ module.exports = function (VK, INIT_INFO, Settings) {
     });
 
     $(tabMainContainer).animateCss("fadeIn veryfaster");
+
+    let visible = Player.getVisibleContainer();
+    if (visible.temp == true) {
+      Player.controls.back_button.style.display = "";
+    } else {
+      Player.controls.back_button.style.display = "none";
+    }
+
+    /* if (visible.hideHeader) {
+      hideHeader();
+    } else {
+      showHeader();
+    } */
   }
 
-  function showTempContainer(nodeToHide, _cb) {
-    nodeToHide.style.display = "none";
-    let div = createSubtabContainer((nodeToHide.parentNode || null));
-    div.temp = true;
-    div.close = function (fade) {
-      if (fade) {
-        $(div).animateCss("fadeOut", () => {
+  function calculateHeaderOffset() {
+    let container_header = document.getElementById("container_header");
+    Player.getCurrentTabContainerNode().style.marginTop = container_header.offsetHeight + "px";
+  }
+
+  function showBackButton() {
+    Player.controls.back_button.style.display = "";
+    $(Player.controls.back_button).animateCss("fadeIn superfaster");
+  }
+
+  function hideBackButton() {
+    $(Player.controls.back_button).animateCss("fadeOut superfaster").then(() => {
+      Player.controls.back_button.style.display = "none";
+    });
+  }
+
+  function showHeader() {
+    calculateHeaderOffset();
+    let container_header = document.getElementById("container_header");
+    container_header.style.display = "";
+  }
+
+  function hideHeader() {
+    let container_header = document.getElementById("container_header");
+    container_header.style.display = "none";
+    calculateHeaderOffset();
+  }
+
+  function showTempContainer(nodeToHide) {
+    return new Promise((resolve) => {
+      nodeToHide.style.display = "none";
+      let div = createSubtabContainer(nodeToHide.parentNode || null);
+      div.temp = true;
+      div.close = (fade, _cb) => {
+        if (fade) {
+          $(div).animateCss("fadeOut").then(() => {
+            div.remove();
+            nodeToHide.style.display = "";
+            $(nodeToHide).animateCss("fadeIn veryfaster");
+            if (_cb) _cb();
+          });
+        } else {
           div.remove();
           nodeToHide.style.display = "";
-          $(nodeToHide).animateCss("fadeIn veryfaster");
-        });
-      } else {
-        div.remove();
-        nodeToHide.style.display = "";
-      }
-    };
-    if (_cb) _cb(div);
+          if (_cb) _cb();
+        }
+      };
+      showBackButton();
+      resolve(div);
+    });
   }
 
   function createTabDiv(id) {
@@ -200,7 +270,7 @@ module.exports = function (VK, INIT_INFO, Settings) {
     return div;
   }
 
-  function createSubtabContainer(parentDiv, id) {
+  function createSubtabContainer(parentDiv) {
     let div = document.createElement("div");
     div.classList.add("map-subtab-container");
     div.onscroll = onScrollHandler;
@@ -209,13 +279,18 @@ module.exports = function (VK, INIT_INFO, Settings) {
         if (node.close) node.close(fade);
       });
     };
+    div.setOnScrollFunction = function (f) {
+      return div.onScrollHandler = f;
+    };
+    div.getOnScrollFunction = function () {
+      return div.onScrollHandler;
+    };
     div.setContainerData = function (type, list) {
       div.container_data = { type, list };
     };
     div.getContainerData = function () {
       return div.container_data || null;
     };
-    if (id) div.id = id;
     if (parentDiv) {
       parentDiv.appendChild(div);
       parentDiv.mainChildContainer = div;
