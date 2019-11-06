@@ -9,10 +9,6 @@ let options = {
   user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:62.0) Gecko/20100101 Firefox/62.0"
 };
 
-process.on("uncaughtException", (e) => {
-  console.log("uncaughtException " + e.stack);
-});
-
 let VK = {
   auth: (email, password) => {
     return new Promise((resolve, reject) => {
@@ -20,7 +16,7 @@ let VK = {
         if (e) return reject(e);
         let ip_h = b.match(/name="ip_h" value="([A-z0-9]+)"/i);
         let lg_h = b.match(/name="lg_h" value="([A-z0-9]+)"/i);
-        if (!ip_h || !lg_h) return reject("ip_h or lg_h is not finded at ` page");
+        if (!ip_h || !lg_h) return reject("ip_h or lg_h is not finded at this page");
         options.cookies = r.cookies;
         needle.post("https://login.vk.com/?act=login", {
           _origin: "https://vk.com",
@@ -80,14 +76,16 @@ let VK = {
       }, options, (e, r, b) => {
         if (e) return reject(e);
         options.cookies = Object.assign(options.cookies, r.cookies);
-        let url = b.match(/<!>\/(.+?)</);
+
+        let payload = parsePayload(b);
+        let url = payload[1][0] && JSON.parse(payload[1][0]);
         if (!url) {
           reject({
             code: 2,
             text: b
           });
         } else {
-          needle.get("https://vk.com/" + url[1], options, (e, r) => {
+          needle.get("https://vk.com" + url, options, (e, r) => {
             if (e) return reject(e);
             options.cookies = Object.assign(options.cookies, r.cookies);
             resolve(VK.load(options.cookies));
@@ -96,45 +94,78 @@ let VK = {
       });
     });
   },
-  load: (cookies) => {
+  load_hash: () => {
     return new Promise((resolve, reject) => {
-      options.cookies = cookies;
       needle.get("https://vk.com/dev/execute", options, (e, r, b) => {
         if (e) return reject(e);
         let hash = b.match(/Dev\.methodRun\('([A-z0-9:]+)/i);
-        if (!hash) return reject({ code: 3, error: "incorect login or password" });
-        VK.api = new Proxy({}, {
-          get: (t1, method) => {
-            return new Proxy(t1, {
-              get: (t2, subMethod) => (params) => {
-                return new Promise((resolve) => {
-                  if (!params) params = {};
-                  needle.post("https://vk.com/dev", {
-                    param_code: `return API.${method}.${subMethod}(${JSON.stringify(params)});`,
-                    act: "a_run_method",
-                    al: 1,
-                    method: "execute",
-                    param_v: "5.80",
-                    hash: hash[1],
-                  }, options, (e, r, b) => {
-                    let res = JSON.parse(b.match(/{.*/)[0]);
-                    resolve(res.response || res);
-                  });
-                });
-              }
-            });
-          }
-        });
-        VK.api.users.get().then((r) => {
-          if (!r) return VK.load(cookies);
-          VK.user_id = r[0].id;
-          VK.cookies = options.cookies;
-          VK.audioUtils.getExportsHash().then((hash) => {
-            VK.exports_hash = hash;
-            resolve(VK);
-          });
-        });
+        console.log("load hash");
+        if (!hash) {
+          return reject({ code: 3, error: "user is not logged in" });
+        } else {
+          VK.hash = hash[1];
+          resolve(true);
+        }
       });
+    });
+  },
+  load: (cookies) => {
+    return new Promise((resolve, reject) => {
+      options.cookies = cookies;
+      VK.api = new Proxy({}, {
+        get: (t1, method) => {
+          return new Proxy(t1, {
+            get: (t2, subMethod) => (params = {}) => {
+              return new Promise((resolve, reject) => {
+                needle.post("https://vk.com/dev", {
+                  param_code: `return API.${method}.${subMethod}(${JSON.stringify(params)});`,
+                  act: "a_run_method",
+                  al: 1,
+                  method: "execute",
+                  param_v: "5.101",
+                  hash: VK.hash,
+                }, options, (e, r, b) => {
+                  let payload = parsePayload(b);
+
+                  if (payload[0] == 0) {
+                    let json = JSON.parse(payload[1]);
+
+                    if (json.payload && json.payload[1]) {
+                      json = JSON.parse(json.payload[1][0]);
+                    }
+
+                    if (json.error) {
+                      reject(json);
+                    } else {
+                      resolve(json.response || json);
+                    }
+                  } else if (payload[0] == 8) {
+                    VK.load_hash().then(() => {
+                      VK.api[method][subMethod](params).then(resolve);
+                    }).catch(reject);
+                  } else {
+                    console.log("UNKNOWN API ERROR: ", b);
+                    reject({
+                      error: "unknown api error",
+                      body: b
+                    });
+                  }
+                });
+              });
+            }
+          });
+        }
+      });
+
+      VK.api.users.get().then((r) => {
+        if (!r) return VK.load(cookies);
+        VK.user_id = r[0].id;
+        VK.cookies = options.cookies;
+        VK.audioUtils.getExportsHash().then((hash) => {
+          VK.exports_hash = hash;
+          resolve(VK);
+        });
+      }).catch(reject);
     });
   },
   audioUtils: {
@@ -152,14 +183,15 @@ let VK = {
           search_history: 0,
           track_type: "default"
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            let list = audioListToObj(json.list);
-            resolve(list);
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          let json = payload[1][0];
+          let list = audioListToObj(json.list);
+          resolve(list);
+        });
       });
     },
     getRecomsBlocks: (obj) => {
@@ -169,29 +201,30 @@ let VK = {
           al: 1,
           offset: obj.offset || 0,
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            let sections = json.join("").match(/<a(.+?)href="\/audios[0-9]+\?section=recoms_block(.+?)>/g);
-            if (sections) {
-              let blocks = sections.map((e) => e.match(/section=recoms_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=recoms_block&type=", ""))[0]);
-              let load = blocks.map((e) => {
-                return VK.audioUtils.loadBlockById({
-                  id: e
-                });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          let json = payload[1][0];
+          let sections = json.join("").match(/<a(.+?)href="\/audios[0-9]+\?section=recoms_block(.+?)>/g);
+          if (sections) {
+            let blocks = sections.map((e) => e.match(/section=recoms_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=recoms_block&type=", ""))[0]);
+            let load = blocks.map((e) => {
+              return VK.audioUtils.loadBlockById({
+                id: e
               });
-              Promise.all(load).then((lists) => {
-                let blocks = lists.remap("name");
-                resolve(blocks);
-              }).catch(reject);
-            } else {
-              reject({
-                error: "result is null"
-              });
-            }
-          });
+            });
+            Promise.all(load).then((lists) => {
+              let blocks = lists.remap("name");
+              resolve(blocks);
+            }).catch(reject);
+          } else {
+            reject({
+              error: "result is null"
+            });
+          }
+        });
       });
     },
     getAllSearchBlocks: (obj) => {
@@ -205,28 +238,30 @@ let VK = {
           offset: obj.offset || 0,
           section: "search",
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let albums = b.match(/<a(.+?)href="\/audios[0-9]+\?section=search_block(.+?)>/gm);
-            if (albums) {
-              let blocks = albums.map((e) => e.match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""))[0]);
-              let load = blocks.map((e) => {
-                return VK.audioUtils.loadBlockById({
-                  id: e
-                });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          let html = payload[1][2];
+          let albums = html.match(/<a(.+?)href="\/audios[0-9]+\?section=search_block(.+?)>/gm);
+          if (albums) {
+            let blocks = albums.map((e) => e.match(/section=search_block&type=[A-z0-9]+/ig).map((e) => e.replace("section=search_block&type=", ""))[0]);
+            let load = blocks.map((e) => {
+              return VK.audioUtils.loadBlockById({
+                id: e
               });
-              Promise.all(load).then((lists) => {
-                var blocks = lists.remap("name");
-                resolve(blocks);
-              }).catch(reject);
-            } else {
-              reject({
-                error: "search result is null"
-              });
-            }
-          });
+            });
+            Promise.all(load).then((lists) => {
+              var blocks = lists.remap("name");
+              resolve(blocks);
+            }).catch(reject);
+          } else {
+            reject({
+              error: "search result is null"
+            });
+          }
+        });
       });
     },
     loadBlockById: (obj) => {
@@ -237,34 +272,30 @@ let VK = {
           block_id: obj.id,
           render_html: 1
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let match = b.match(/audio\?z=audio_playlist(.+?)"/g);
-            if (!match) {
-              reject({
-                error: "Page isn't loaded"
-              });
-            } else {
-              let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-              if (json.type == "playlists") {
-                let hashes = b.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/g).unique().map((e) => e.match(/'(.*?)'/)[1]);
-                json.items = Object.entries(json.items).map((e, i) => {
-                  e[1].playlist_id = e[0];
-                  e[1].access_hash = hashes[i];
-                  return e[1];
-                });
-                json.items.forEach((e) => {
-                  if (e.photo) {
-                    let p = e.photo.angles[0].m;
-                    e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
-                  }
-                });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+
+          let json = payload[1][0];
+          if (json.type == "playlists") {
+            let hashes = payload[1][1].map((e) => e.match(/AudioUtils\.showAudioPlaylist\((.+?)\)/)[1]).map((e) => e.match(/'(.+?)'/)[1]);
+            json.items = Object.entries(json.items).map((e, i) => {
+              e[1].playlist_id = e[0];
+              e[1].access_hash = hashes[i];
+              return e[1];
+            });
+            json.items.forEach((e) => {
+              if (e.photo) {
+                let p = e.photo.angles[0].m;
+                e.photo.url = `https://pp.userapi.com/c${p.server}/v${p.volume_id}/${p.volume_local_id}/${p.secret}.jpg`;
               }
-              resolve(json);
-            }
-          });
+            });
+          }
+
+          resolve(json);
+        });
       });
     },
     getWallAudioFromPostId: (obj) => {
@@ -283,17 +314,18 @@ let VK = {
           wall_query: "",
           wall_type: "own"
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            if (json.list) {
-              resolve(audioListToObj(json.list));
-            } else {
-              reject(json);
-            }
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          let json = payload[1][0];
+          if (json.list) {
+            resolve(audioListToObj(json.list));
+          } else {
+            reject(json);
+          }
+        });
       });
     },
     getWallAudioFromWall: (obj) => {
@@ -307,24 +339,24 @@ let VK = {
           type: "own",
           wall_start_from: obj.offset ? obj.offset + 1 : 1
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let match = b.match(/data-audio="(.+?)"/g);
-            let posts = b.match(/data-post-id="(.+?)"/g);
-            if (match) {
-              let audios = match.map((e) => replaceHtmlUnicode(e.match(/"(.+?)"/i)[1])).map(JSON.parse);
-              resolve(audioListToObj(audios));
-            } else if (!posts) {
-              reject("end of group posts");
-            } else {
-              resolve([]);
-            }
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let match = b.match(/data-audio="(.+?)"/g);
+          let posts = b.match(/data-post-id="(.+?)"/g);
+          if (match) {
+            let audios = match.map((e) => replaceHtmlUnicode(e.match(/"(.+?)"/i)[1])).map(JSON.parse);
+            resolve(audioListToObj(audios));
+          } else if (!posts) {
+            reject("end of group posts");
+          } else {
+            resolve([]);
+          }
+        });
       });
     },
-    getPlaylist: (obj, dontTransformList) => {
+    getPlaylist: (obj, saveOriginalResponse) => {
       return new Promise((resolve, reject) => {
         needle.post("https://vk.com/al_audio.php", {
           access_hash: obj.access_hash || "",
@@ -337,37 +369,40 @@ let VK = {
           owner_id: obj.owner_id || VK.user_id,
           playlist_id: obj.playlist_id || -1
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            if (json.list) {
-              if (dontTransformList) {
-                resolve(json);
-              } else {
-                let list = audioListToObj(json.list);
-                resolve(list);
-              }
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          if (payload[1][0].list) {
+            let list = audioListToObj(payload[1][0].list);
+            if (saveOriginalResponse) {
+              resolve([payload[1][0], list]);
             } else {
-              reject({
-                error: "playlist is not available"
-              });
+              resolve(list);
             }
-          });
+          } else {
+            reject({
+              error: "playlist is not available"
+            });
+          }
+        });
       });
     },
-    getFullPlaylist: (obj) => {
+    getFullPlaylist: (obj, saveOriginalResponse) => {
       return new Promise((resolve) => {
         let container = [];
         (function get(offset) {
           VK.audioUtils.getPlaylist(Object.assign(obj || {}, { offset }), true).then((r) => {
-            container = container.concat(r.list);
-            if (r.nextOffset < r.totalCount) {
-              get(r.nextOffset);
+            container = container.concat(r[1]);
+            if (r[0].nextOffset < r[0].totalCount) {
+              get(r[0].nextOffset);
             } else {
-              let list = audioListToObj(container);
-              resolve(list);
+              if (saveOriginalResponse) {
+                resolve([r, container]);
+              } else {
+                resolve(container);
+              }
             }
           });
         })();
@@ -383,33 +418,34 @@ let VK = {
           section: "playlists",
           owner_id: obj.owner_id || VK.user_id
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let elems = b.match(/<a\shref="\/audio.+?>/g);
-            let titles = b.match(/<a\sclass="audio_item__title".+?>(.+?)</g);
-            let playlists = [];
-            if (elems) {
-              elems.forEach((e, i) => {
-                let params = parseNodeParams(e);
-                let ids = params.href.match(/audio_playlist([-_0-9]+)/i)[1].split("_");
-                let access_hash = params.href.match(/\/([A-z0-9]+)$/i);
-                let picture = params.style.match(/http(?:s):\/\/.+?.jpg/i);
-                let title = titles[i].match(/>(.+?)</i)[1];
-                playlists.push({
-                  owner_id: ids[0],
-                  playlist_id: ids[1],
-                  picture: picture ? picture[0] : null,
-                  title: title,
-                  access_hash: access_hash ? access_hash[1] : null
-                });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          let html = payload[1][0];
+          let elems = html.match(/<a\shref="\/music.+?>/g);
+          let titles = html.match(/<a\sclass="audio_item__title".+?>(.+?)</g);
+          let playlists = [];
+          if (elems) {
+            elems.forEach((e, i) => {
+              let params = parseNodeParams(e);
+              let ids = params.href.match(/\/music\/album\/([-_0-9A-z]+)/i)[1].split("_");
+              let picture = params.style.match(/http(?:s):\/\/.+?.jpg/i);
+              let title = titles[i].match(/>(.+?)</i)[1];
+              playlists.push({
+                owner_id: ids[0],
+                playlist_id: ids[1],
+                picture: picture ? picture[0] : null,
+                title: title,
+                access_hash: ids[2] || null
               });
-              resolve(playlists);
-            } else {
-              resolve(null);
-            }
-          });
+            });
+            resolve(playlists);
+          } else {
+            resolve(null);
+          }
+        });
       });
     },
     getAudioById: (obj) => {
@@ -420,18 +456,17 @@ let VK = {
           al: 1,
           ids: `${obj.owner_id}_${obj.id}_${hash}`
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let match = b.match(/<!json>(.+?)<!>/i);
-            if (match) {
-              let json = JSON.parse(match[1]);
-              resolve(audioListToObj(json));
-            } else {
-              reject(null);
-            }
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          if (payload) {
+            resolve(audioListToObj(payload[1][0]));
+          } else {
+            reject(null);
+          }
+        });
       });
     },
     getRecomendations: (obj) => {
@@ -445,14 +480,15 @@ let VK = {
           offset: obj.offset || 0,
           al: 1
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let json = JSON.parse(b.match(/<!json>(.+?)<!>/i)[1]);
-            json.list = audioListToObj(json.list);
-            resolve(json);
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let payload = parsePayload(b);
+          let json = payload[1][0];
+          json.list = audioListToObj(json.list);
+          resolve(json);
+        });
       });
     },
     getAllRecomendations: () => {
@@ -481,20 +517,20 @@ let VK = {
           group_id: 0,
           hash: obj.hashes[0]
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            let match = b.match(/<!json>(.+?)$/i);
-            if (match) {
-              let json = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
-              resolve(audioListToObj([json]));
-            } else {
-              reject({
-                error: "json is undefined"
-              });
-            }
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          let match = b.match(/<!json>(.+?)$/i);
+          if (match) {
+            let json = JSON.parse(b.match(/<!json>(.+?)$/i)[1]);
+            resolve(audioListToObj([json]));
+          } else {
+            reject({
+              error: "json is undefined"
+            });
+          }
+        });
       });
     },
     deleteAudio: (obj) => {
@@ -508,12 +544,12 @@ let VK = {
           hash: obj.hashes[3],
           restore: 1
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            resolve(b);
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          resolve(b);
+        });
       });
     },
     restoreAudio: (obj) => {
@@ -526,12 +562,12 @@ let VK = {
           oid: obj.owner_id,
           hash: obj.hashes[1]
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            resolve(b);
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          resolve(b);
+        });
       });
     },
     getAudioCover: (obj) => {
@@ -548,7 +584,7 @@ let VK = {
             playlist_id: r.playlist_info.id,
             access_hash: r.playlist_info.access_hash
           }, true).then((c) => {
-            resolve(c.coverUrl || null);
+            resolve(c[0].coverUrl || null);
           });
         });
       });
@@ -565,12 +601,12 @@ let VK = {
           id: obj.audio || "",
           top: 0
         }, {
-            multipart: true,
-            cookies: VK.cookies
-          }, (e, r, b) => {
-            if (e) return reject(e);
-            resolve(b);
-          });
+          multipart: true,
+          cookies: VK.cookies
+        }, (e, r, b) => {
+          if (e) return reject(e);
+          resolve(b);
+        });
       });
     },
     getExportsHash: () => {
@@ -580,7 +616,12 @@ let VK = {
           cookies: VK.cookies
         }, (e, r, b) => {
           if (e) return reject(e);
-          resolve(b.match(/statusExportHash:\s'(.+?)'/)[1]);
+          let matched = b.match(/statusExportHash:\s'(.+?)'/);
+          if (matched) {
+            resolve(b.match(/statusExportHash:\s'(.+?)'/)[1]);
+          } else {
+            resolve(null);
+          }
         });
       });
     }
@@ -624,6 +665,21 @@ function parseNodeParams(string) {
     obj[p[0]] = p[1].replace(/"$/, "");
   });
   return obj;
+}
+
+function parsePayload(string) {
+  let callInfo = string.replace(/^<!-+/, "").split("<!>");
+
+  let payload;
+  if (callInfo.length === 1) {
+    payload = JSON.parse(callInfo[0]).payload;
+  } else {
+    callInfo.splice(callInfo.indexOf(callInfo[4]), 1);
+    callInfo.splice(callInfo.indexOf(callInfo[5]), 1);
+    payload = [callInfo[4], callInfo];
+  }
+
+  return payload;
 }
 
 module.exports = VK;
